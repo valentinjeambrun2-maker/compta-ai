@@ -446,6 +446,14 @@ def micro(c, eid, q, b):
 def liasse_calc(c, eid, q, b):
     return liasse.compute(c, eid, int(b.get("year", dt.date.today().year)), b.get("reintegrations"), b.get("deductions"), b.get("pme", True))
 
+@route("POST", "/api/liasse/corriger-is", "ecriture")
+def liasse_corriger_is(c, eid, q, b):
+    """Reclasse l'IS comptabilisé au 44551 (TVA) vers le 444, par une écriture de correction."""
+    r = business.corriger_is(c, eid, int(b.get("year", dt.date.today().year)))
+    if not r["deja_fait"] and r["montant_eur"]:
+        auth.log(c, REQ.user["id"], eid, "reclassement_is", f"IS {b.get('year')} reclassé du 44551 vers le 444 : {r['montant_eur']} €")
+    return r
+
 @route("POST", "/api/declarations", "ecriture")
 def declare(c, eid, q, b):
     return filing.save_and_submit(c, eid, b["type"], b["period"], b["data"], b.get("submit", False))

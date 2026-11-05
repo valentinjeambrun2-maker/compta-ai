@@ -39,8 +39,12 @@ def listing(con, eid, year):
     if ent["kind"] == "entreprise":
         if is_soc:
             item("liasse", f"Liasse fiscale {year} (2065 + 2033)", str(year), f"{year}-01-01", f"{year}-12-31", f"{year + 1}-05-05")
-            res = ledger.income_statement(con, eid, f"{year}-01-01", f"{year}-12-31")["resultat"]
-            item("is", f"Relevé de solde d'IS {year} (2572)", str(year), f"{year}-01-01", f"{year}-12-31", f"{year + 1}-05-15", tax.impot_societes(res / 100, True, year)["is"])
+            # Solde = IS dû sur le résultat fiscal, net des acomptes versés au 444 pendant l'exercice.
+            acomptes = con.execute("""SELECT COALESCE(SUM(l.debit - l.credit), 0) FROM lines l JOIN entries en ON en.id = l.entry_id
+                WHERE en.entity_id=? AND l.account='444' AND en.source!='closing' AND en.date BETWEEN ? AND ?""",
+                (eid, f"{year}-01-01", f"{year}-12-31")).fetchone()[0] / 100
+            is_du = liasse.compute(con, eid, year)["2065"]["IS total"]
+            item("is", f"Relevé de solde d'IS {year} (2572)", str(year), f"{year}-01-01", f"{year}-12-31", f"{year + 1}-05-15", round(is_du - acomptes, 2))
         months = {r[0] for r in con.execute("SELECT DISTINCT period FROM payslips WHERE entity_id=? AND substr(period,1,4)=?", (eid, str(year)))}
         eff = int(db.get_setting(con, eid, "effectif", 0) or 0)
         for m in sorted(months):

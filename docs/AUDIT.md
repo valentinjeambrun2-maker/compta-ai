@@ -18,7 +18,7 @@ Ce qu'un professionnel attend d'un logiciel de comptabilité et de déclarations
 
 | # | Constat | Outil | Preuve | Statut |
 |---|---|---|---|---|
-| 1 | L'IS est comptabilisé au **44551** « TVA à décaisser » au lieu du **444**. Il gonfle la TVA due et apparaît comme TVA au bilan. | Impôts & liasse, TVA, États financiers | `compta/business.py:167`, `compta/pcg.py:34` | **vérifié** (3 relectures) |
+| 1 | L'IS est comptabilisé au **44551** « TVA à décaisser » au lieu du **444**. Il gonfle la TVA due et apparaît comme TVA au bilan. | Impôts & liasse, TVA, États financiers | `compta/business.py:167`, `compta/pcg.py:34` | **vérifié** (3 relectures) · **corrigé** : IS au 444 sur le résultat fiscal, reclassement des exercices passés |
 | 2 | Une écriture **validée** est supprimée physiquement (`DELETE FROM entries`). Aucune contre-passation, aucune trace du contenu. | Comptabilité, Clôture | `server.py:200-210` | **vérifié** |
 | 3 | Option SMTP « Aucune » : identifiant et mot de passe sont envoyés **en clair**. | Paramètres | `compta/sales.py:69-78`, `static/index.html` | **vérifié** |
 | 4 | Le **dernier propriétaire** peut être rétrogradé en lecteur : aucun contrôle dans `add_member`. Le dossier n'a plus de gestionnaire. | Paramètres | `compta/auth.py` (`add_member`) | **vérifié** |
@@ -116,13 +116,21 @@ Ordre du menu : chaque outil a une fiche (fonctionne, défauts, écarts, amélio
    - *Affichage* : une écriture annulée porte « annulée », sa contre-passation « contre-passation ». « Annuler » n'apparaît que lorsque l'action est possible ; « facture » et « lettrée » signalent les cas refusés.
    - Non traité : identifiant de l'utilisateur sur chaque écriture (`created_by`), modèles d'écritures.
    - Tests : `tests/test_comptabilite.py` (9). Vérifié dans le navigateur : annulation, refus sur facture, total et pagination.
+4. **Impôts & liasse (entreprise)** :
+   - *IS au 444* : l'IS est calculé sur le résultat fiscal (même calcul que la 2065) et comptabilisé au 444, plus au compte de TVA 44551. Il ne fausse plus la TVA ni l'analyse de trésorerie.
+   - *Reclassement* : un IS déjà passé au 44551 se corrige par une écriture de correction (44551 → 444). L'écriture d'origine n'est pas modifiée ; la correction est datée du premier jour ouvert ; l'opération ne se fait qu'une fois. Bouton « Reclasser l'IS » dans la liasse. Vérifié dans le navigateur : 500 € reclassés, contrôle disparu.
+   - *SIREN* : les 9 premiers chiffres du SIRET, espaces retirés d'abord (un SIRET sans espaces donnait 11 chiffres).
+   - *Acomptes* : le solde d'IS (2572) est net des acomptes versés au 444 pendant l'exercice.
+   - *Contrôles* de la liasse : IS au 44551 à reclasser, IS comptabilisé différent du calcul, IS non encore comptabilisé.
+   - Tests : `tests/test_impots_entreprise.py` (5). Suite complète : 64 tests verts.
+   - Non traité : liquidation de TVA (`tax.py:204-249`), SIRET normalisé à la saisie, acomptes d'IS comptabilisés par un bouton dédié.
 
 ## 5. Ordre proposé pour la suite
 
 Un outil par itération, un commit et un push par outil. L'ordre suit le risque pour le professionnel.
 
 1. **Comptabilité** : *fait* (voir §4, item 3). Restent `created_by` et les modèles d'écritures.
-2. **Impôts** : entreprise (IS au 444, liquidation TVA, SIREN, acomptes) et particulier (foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant).
+2. **Impôts** : entreprise *fait* (voir §4, item 4). Reste côté particulier : foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant. Puis la liquidation de TVA.
 3. **Déclarations** : upsert par type et période, bouton « déposée », propagation des accusés.
 4. **Paramètres** : SMTP sans identifiants en clair, garde du dernier propriétaire, droits sur les salaires et NIR, journal d'audit réel.
 5. **Paie** : DSN liée à `edi_test`, CSG, mutuelle, prorata.

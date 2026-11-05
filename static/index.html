@@ -439,9 +439,11 @@ async function liasseCalc(){
    ${Object.entries(rf.reintegrations).map(([k,v])=>`<tr><td>+ ${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}${Object.entries(rf.deductions).map(([k,v])=>`<tr><td>− ${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}
    <tr><td><b>370 Bénéfice fiscal</b></td><td class="n"><b>${fmt(rf['370 Résultat fiscal — bénéfice'])}</b></td></tr><tr><td>372 Déficit</td><td class="n">${fmt(rf['372 Résultat fiscal — déficit'])}</td></tr></table></div>
    <div class="card"><h3 style="margin-top:0">2065 · Impôt sur les sociétés</h3><table>${Object.entries(L['2065']).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${typeof v=='number'?fmt(v):esc(v)}</td></tr>`).join('')}</table></div></div>
+   ${(L.controles||[]).map(x=>`<div class="al ${x.niveau=='attention'?'attention':'info'}"><div style="flex:1">${esc(x.message)}</div>${x.action=='corriger_is'?`<button class="b small" onclick="isCorrect()">Reclasser l'IS</button>`:''}</div>`).join('')}
    <div class="al info">${esc(L.avertissement)}</div>
    <p class="row"><button class="b" onclick="declLiasse()">Transmettre la liasse (EDI-TDFC)</button></p><div id="declOut"></div>`}
 function declLiasse(){declare('liasse',String(YEAR),JSON.stringify(window._liasse))}
+async function isCorrect(){ const r=await api('/api/liasse/corriger-is',{year:YEAR}); toast(r.deja_fait?'IS déjà reclassé':r.montant_eur?`IS reclassé au 444 : ${fmt(r.montant_eur)}`:'Rien à reclasser'); liasseCalc(); }
 
 // ---------- Revenus fonciers (2044) ----------
 const BIENF=[['loyers','Loyers bruts encaissés'],['frais_administration','Frais de gestion / agence'],['assurance','Assurance (PNO…)'],['travaux','Travaux réparation, entretien, amélioration'],['taxe_fonciere','Taxe foncière (hors TEOM)'],['provisions_copro','Provisions de copropriété'],['regularisation_copro','Régularisation provisions N-1'],['interets','Intérêts d\'emprunt']];

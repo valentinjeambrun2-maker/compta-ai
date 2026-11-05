@@ -160,11 +160,12 @@ def close_year(con, eid, year, pme=True):
     out = {"amortissements": depreciate(con, eid, year) if ent["kind"] == "entreprise" else None}
     s, e = f"{year}-01-01", f"{year}-12-31"
     if ent["kind"] == "entreprise" and ent["legal_form"] in ("SAS", "SASU", "SARL", "EURL", "SA"):
-        res = ledger.income_statement(con, eid, s, e)["resultat"]
-        isr = tax.impot_societes(res / 100, pme, year)
+        from . import liasse
+        # L'IS est dû sur le résultat fiscal (même calcul que la 2065) et se comptabilise au 444, jamais à la TVA (44551).
+        isr = tax.impot_societes(liasse.compute(con, eid, year, pme=pme)["2065"]["Résultat fiscal"], pme, year)
         if isr["is"] > 0:
             ledger.post_entry(con, eid, e, "OD", f"Impôt sur les sociétés {year}",
-                              [{"account": "695", "debit": isr["is"] * 100}, {"account": "44551", "credit": isr["is"] * 100}], source="closing")
+                              [{"account": "695", "debit": int(isr["is"]) * 100}, {"account": "444", "credit": int(isr["is"]) * 100}], source="closing")
         out["impot_societes"] = isr
     if ent["kind"] == "entreprise":
         from . import closing
@@ -172,6 +173,25 @@ def close_year(con, eid, year, pme=True):
     con.execute("UPDATE entities SET closed_until=? WHERE id=?", (e, eid))
     out["verrouille_jusqu_au"] = e
     return out
+
+def corriger_is(con, eid, year):
+    """Reclasse un IS comptabilisé au 44551 (TVA) vers le 444 (IS), par une écriture de correction.
+    L'écriture d'origine n'est pas modifiée. La correction est datée du premier jour ouvert. Sans effet si déjà faite."""
+    motif = f"Reclassement IS {year} : 44551 vers 444"
+    if con.execute("SELECT 1 FROM entries WHERE entity_id=? AND source='correction_is' AND label=?", (eid, motif)).fetchone():
+        return {"montant_eur": 0, "deja_fait": True}
+    montant = con.execute("""SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM lines l JOIN entries en ON en.id = l.entry_id
+        WHERE en.entity_id=? AND en.source='closing' AND en.label=? AND l.account='44551'""",
+        (eid, f"Impôt sur les sociétés {year}")).fetchone()[0]
+    if montant <= 0:
+        return {"montant_eur": 0, "deja_fait": False}
+    ent = ledger.entity(con, eid)
+    day = dt.date.today()
+    if ent["closed_until"] and day.isoformat() <= ent["closed_until"]:
+        day = dt.date.fromisoformat(ent["closed_until"]) + dt.timedelta(days=1)
+    ledger.post_entry(con, eid, day.isoformat(), "OD", motif,
+                      [{"account": "44551", "debit": montant}, {"account": "444", "credit": montant}], source="correction_is")
+    return {"montant_eur": montant / 100, "deja_fait": False, "date": day.isoformat()}
 
 # ---------------- Contexte, audit, préparation fiscale ----------------
 def context(con, eid, year):

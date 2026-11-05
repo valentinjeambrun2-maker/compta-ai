@@ -4,6 +4,7 @@ détermination du résultat fiscal), 2033-C (immobilisations et amortissements) 
 ⚠ Les numéros de lignes suivent les formulaires CERFA 2033 ; contrôlez-les sur le millésime de l'année.
 Le dépôt se fait en EDI-TDFC via un partenaire agréé (voir compta/edi.py).
 """
+import re
 from . import ledger, tax
 
 def _bal(con, eid, end, start=None):
@@ -93,11 +94,31 @@ def compute(con, eid, year, reintegrations=None, deductions=None, pme=True):
     # ---- 2065 IS
     is_ = tax.impot_societes(r_fiscal / 100, pme, year)
     ent = ledger.entity(con, eid)
-    f2065 = {"Dénomination": ent["name"], "SIREN": (ent.get("siret") or "")[:11].replace(" ", ""), "Exercice": f"{s} → {e}",
+    # SIREN = 9 premiers chiffres du SIRET, espaces retirés d'abord (un SIRET saisi sans espaces a 14 chiffres).
+    f2065 = {"Dénomination": ent["name"], "SIREN": re.sub(r"\D", "", ent.get("siret") or "")[:9], "Exercice": f"{s} → {e}",
              "Régime": "Réel simplifié (RSI)", "Résultat fiscal": E(r_fiscal), "IS au taux réduit (15 %)": round(min(max(r_fiscal / 100, 0), 42500) * .15) if pme else 0,
              "IS total": is_["is"], "Acompte trimestriel": is_.get("acomptes_trimestriels", 0)}
+    # ---- contrôles : IS comptabilisé contre IS calculé sur le résultat fiscal
+    lib_is = f"Impôt sur les sociétés {year}"
+    motif_is = f"Reclassement IS {year} : 44551 vers 444"
+    # IS comptabilisé (clôture, plus son reclassement éventuel) : encore au 44551, et au 444.
+    legacy = con.execute("""SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM lines l JOIN entries en ON en.id = l.entry_id
+        WHERE en.entity_id=? AND l.account='44551' AND ((en.source='closing' AND en.label=?) OR (en.source='correction_is' AND en.label=?))""",
+        (eid, lib_is, motif_is)).fetchone()[0]
+    booked = con.execute("""SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM lines l JOIN entries en ON en.id = l.entry_id
+        WHERE en.entity_id=? AND l.account='444' AND ((en.source='closing' AND en.label=?) OR (en.source='correction_is' AND en.label=?))""",
+        (eid, lib_is, motif_is)).fetchone()[0] / 100
+    controles = []
+    if legacy > 0:
+        controles.append({"niveau": "attention", "action": "corriger_is",
+                          "message": f"L'IS {year} est comptabilisé au 44551 (TVA) : il fausse la TVA due. Reclassez-le au 444."})
+    elif booked and abs(booked - is_["is"]) >= 1:
+        controles.append({"niveau": "attention",
+                          "message": f"L'IS comptabilisé ({booked:.0f} €) diffère de l'IS calculé sur le résultat fiscal ({is_['is']} €). Vérifiez les réintégrations et la clôture."})
+    elif not booked and is_["is"] > 0:
+        controles.append({"niveau": "info", "message": f"L'IS {year} ({is_['is']} €) n'est pas encore comptabilisé : il le sera à la clôture de l'exercice."})
     fmt = lambda rows: [{"ligne": c, "libelle": l, "montant": E(v)} for c, l, v in rows]
     return {"annee": year, "2033A_actif": fmt(actif), "2033A_passif": fmt(passif), "equilibre": ta == tp,
-            "2033B": fmt(compte), "resultat_fiscal": fiscal, "2033C": immos, "2065": f2065,
+            "2033B": fmt(compte), "resultat_fiscal": fiscal, "2033C": immos, "2065": f2065, "controles": controles,
             "avertissement": "Liasse simplifiée générée depuis la comptabilité. Numéros de lignes à contrôler sur le CERFA de l'année ; "
                              "compléter 2033-D (provisions, déficits), 2033-E (valeur ajoutée/CVAE), 2033-F/G (capital, filiales) si applicable."}
