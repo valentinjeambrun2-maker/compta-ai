@@ -75,7 +75,7 @@ button.b:hover{background:var(--accent-hover)}button.b:active,button.g:active{tr
 button.g,a.g{background:transparent;color:var(--link);border:1px solid var(--hair)}
 button.g:hover,a.g:hover{border-color:var(--link)}
 button.g.small{min-height:32px;padding:4px 12px;font-size:13px}
-.lnk{background:none;border:0;color:var(--link);font:inherit;cursor:pointer;padding:0}.lnk::after{content:" ›"}
+.lnk{background:none;border:0;color:var(--link);font:inherit;cursor:pointer;padding:0}.lnk::after{content:" ›"}#userBtn::after{content:""}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted)}.small{font-size:13px}
 details summary{cursor:pointer;color:var(--link);margin-top:18px;list-style:none}details summary::before{content:"✦ "}
 details[open] summary{margin-bottom:10px}
@@ -98,6 +98,15 @@ pre{white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;c
 #toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:rgba(29,29,31,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#f5f5f7;padding:12px 20px;border-radius:999px;display:none;z-index:40;max-width:90vw;font-size:14px;box-shadow:var(--shadow)}
 .legend{display:flex;gap:18px;font-size:13px;color:var(--muted);margin-bottom:8px}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
 .hidden{display:none}ol{padding-left:20px}ol li{margin:6px 0}
+body.ro button.b:not(.calc),body.ro .wr{display:none!important}
+.user{position:relative}.menu{position:absolute;right:0;top:40px;background:var(--panel-2);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:8px;min-width:230px;z-index:50}
+.menu button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 12px;border-radius:10px;font:inherit;color:var(--ink);cursor:pointer}.menu button:hover{background:var(--panel)}
+.menu .who{padding:8px 12px 10px;border-bottom:1px solid var(--line);margin-bottom:6px;font-size:13px}.menu .who b{display:block;font-size:14px}
+.login{max-width:420px;margin:0 auto}.login .card{padding:32px}
+.drop{border:1.5px dashed var(--hair);border-radius:var(--r);padding:22px;text-align:center;color:var(--muted);cursor:pointer;transition:border-color .2s,background .2s;background:var(--panel-2)}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--soft);color:var(--link)}.drop b{color:var(--link);font-weight:500}
+.tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;background:var(--panel-2);color:var(--muted)}.tag.ok{color:var(--ok)}.tag.bad{color:var(--bad)}.tag.warn{color:var(--warn)}.tag.acc{color:var(--link);background:var(--soft)}
+.seg{display:inline-flex;background:var(--panel-2);border-radius:99px;padding:3px;gap:2px;margin-bottom:18px}.seg button{border:0;background:none;padding:7px 16px;border-radius:99px;font:inherit;font-size:14px;color:var(--ink-2);cursor:pointer}.seg button.on{background:var(--ink);color:var(--bg)}
 .big{font-size:clamp(2.2rem,1.6rem + 2vw,3.2rem)!important}
 @media (max-width:640px){.brand small,.chip,.brand .txt{display:none}header{gap:4px}header select{max-width:46vw;font-size:13px}header .lnk{font-size:13px}header .lnk::after{content:""}.kpis{grid-template-columns:1fr 1fr;gap:12px}.kpis .card{padding:16px;border-radius:22px}.kpi .v{font-size:1.25rem}.kpi .l{font-size:12px}.card{border-radius:24px}.hero{padding:36px 0 24px}.fab b{display:none}.fab{padding:7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -108,8 +117,9 @@ pre{white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;c
   <div class="brand"><span class="mark">€</span><span class="txt">ComptaIA</span> <small>par The Herakles</small></div>
   <select id="ent" aria-label="Dossier"></select>
   <select id="year" aria-label="Exercice"></select>
-  <button class="lnk small" onclick="newEntity()" style="white-space:nowrap" aria-label="Nouveau dossier">+ Dossier</button>
+  <button class="lnk small" id="newBtn" onclick="newEntity()" style="white-space:nowrap" aria-label="Nouveau dossier">+ Dossier</button>
   <span id="iaBadge" class="chip"></span>
+  <div class="user"><button class="lnk small" id="userBtn" onclick="toggleMenu()" style="white-space:nowrap"></button><div class="menu hidden" id="menu"></div></div>
 </header>
 <nav><div class="in" id="nav"></div></nav>
 <main><section class="hero" id="hero"></section><div id="view"></div></main>
@@ -121,24 +131,55 @@ let ENT=null, ENTS=[], YEAR=new Date().getFullYear(), TAB='dash';
 const fmt=v=>(v==null?'—':Number(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'}));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
+let ME=null, ROLE=null;
 async function api(path,body,method){
-  const r=await fetch(path,{method:method||(body?'POST':'GET'),headers:{'Content-Type':'application/json','X-Entity':ENT?.id||0},body:body?JSON.stringify(body):undefined});
+  const r=await fetch(path,{method:method||(body?'POST':'GET'),credentials:'same-origin',headers:{'Content-Type':'application/json','X-Entity':ENT?.id||0},body:body?JSON.stringify(body):undefined});
   const ct=r.headers.get('content-type')||'';const d=ct.includes('json')?await r.json():await r.text();
+  if(r.status==401){showLogin();throw new Error('auth')}
   if(!r.ok){toast('⚠ '+(d.error||d));throw new Error(d.error||d)}return d}
-const TABS={entreprise:[['dash','Tableau de bord'],['bank','Banque & IA'],['inv','Factures'],['jrn','Écritures'],['rep','États financiers'],['tva','TVA'],['tax','Impôts'],['ai','Assistant IA'],['close','Clôture & exports']],
- particulier:[['dash','Tableau de bord'],['bank','Banque & IA'],['jrn','Écritures'],['rep','Budget'],['tax','Déclaration de revenus'],['ai','Assistant IA'],['close','Exports']]};
+async function fetchBlob(path){const r=await fetch(path,{credentials:'same-origin',headers:{'X-Entity':ENT?.id||0}});
+  if(!r.ok){const d=await r.json().catch(()=>({}));toast('⚠ '+(d.error||'Téléchargement impossible'));throw new Error('dl')}
+  const cd=r.headers.get('content-disposition')||'';return {blob:await r.blob(),name:(cd.match(/filename="([^"]+)"/)||[])[1]||'export'}}
+async function download(path){const {blob,name}=await fetchBlob(path);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),5000)}
+async function openFile(path){const w=window.open('','_blank');const {blob}=await fetchBlob(path);const u=URL.createObjectURL(blob);if(w)w.location=u;else location.href=u}
+const readB64=f=>new Promise((ok,ko)=>{const r=new FileReader();r.onload=()=>ok(r.result.split(',')[1]);r.onerror=ko;r.readAsDataURL(f)});
+function dropZone(id,label,onfile,accept='.pdf,image/*'){return `<label class="drop wr" id="${id}" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')"
+  ondrop="event.preventDefault();this.classList.remove('over');${onfile}(event.dataTransfer.files[0])"><input type="file" accept="${accept}" class="hidden" onchange="${onfile}(this.files[0])">✦ ${label}<br><span class="small">Glissez un <b>PDF</b> ou une <b>photo</b>, ou cliquez pour choisir</span></label>`}
+const today=()=>new Date().toISOString().slice(0,10);
+const exportBtns=(kind)=>`<span class="row"><button class="g small" onclick="download('/api/export/pdf/${kind}?year=${YEAR}')">PDF</button><button class="g small" onclick="download('/api/export/xlsx/${kind}?year=${YEAR}')">Excel</button></span>`;
+const TABS={entreprise:[['dash','Tableau de bord'],['bank','Banque & IA'],['inv','Factures'],['quotes','Devis'],['ndf','Notes de frais'],['pay','Paie'],['jrn','Écritures'],['rep','États financiers'],['tva','TVA'],['tax','Impôts & liasse'],['ai','Assistant IA'],['close','Clôture & exports'],['set','Paramètres']],
+ particulier:[['dash','Tableau de bord'],['bank','Banque & IA'],['jrn','Écritures'],['rep','Budget'],['tax','Déclaration de revenus'],['ai','Assistant IA'],['close','Exports'],['set','Paramètres']]};
 
 async function init(){
   for(let y=YEAR+1;y>=YEAR-4;y--)$('#year').insertAdjacentHTML('beforeend',`<option ${y==YEAR?'selected':''}>${y}</option>`);
   $('#year').onchange=e=>{YEAR=+e.target.value;render()};
-  $('#ent').onchange=e=>{ENT=ENTS.find(x=>x.id==e.target.value);try{localStorage.setItem('ent',ENT.id)}catch{};TAB='dash';render()};
-  await loadEnts();
+  $('#ent').onchange=e=>{ENT=ENTS.find(x=>x.id==e.target.value);ROLE=ENT.role;try{localStorage.setItem('ent',ENT.id)}catch{};TAB='dash';render()};
+  document.addEventListener('click',e=>{if(!e.target.closest('.user'))$('#menu').classList.add('hidden')});
+  const st=await api('/api/auth/state');
+  if(st.setup_needed)return showSetup();
+  if(!st.user)return showLogin();
+  setUser(st.user);await loadEnts();
 }
+function setUser(u){ME=u;$('#userBtn').textContent=u?u.name.split(' ')[0]+' ▾':'';['#ent','#year','#newBtn','#iaBadge','#userBtn'].forEach(s=>$(s).classList.toggle('hidden',!u))}
+function toggleMenu(){const m=$('#menu');m.classList.toggle('hidden');m.innerHTML=`<div class="who"><b>${esc(ME.name)}</b>${esc(ME.email)}${ROLE?`<br><span class="tag acc" style="margin-top:6px">${ROLE}</span>`:''}</div>
+  <button onclick="TAB='set';render();toggleMenu()">Paramètres et membres</button><button onclick="pwdForm()">Changer de mot de passe</button><button onclick="logout()">Se déconnecter</button>`}
+function authShell(title,lead,inner){$('#nav').innerHTML='';$('#view').innerHTML='';setUser(null);$('.fab').style.display='none';
+  $('#hero').innerHTML=`<div class="login"><p class="eyebrow">ComptaIA</p><h1>${title}</h1><p class="lead">${lead}</p><div class="card" style="margin-top:28px">${inner}</div></div>`}
+function showLogin(){authShell('Bon retour.','Connectez-vous pour accéder à vos dossiers.',`<div class="form" style="grid-template-columns:1fr">
+  <label>E-mail<input id="lE" type="email" autocomplete="username"></label><label>Mot de passe<input id="lP" type="password" autocomplete="current-password" onkeydown="if(event.key=='Enter')doLogin()"></label>
+  <button class="b calc" onclick="doLogin()">Se connecter</button></div>`);setTimeout(()=>$('#lE')?.focus(),50)}
+function showSetup(){authShell('Bienvenue.','Créez le compte administrateur de cette installation.',`<div class="form" style="grid-template-columns:1fr">
+  <label>Nom<input id="sN" autocomplete="name"></label><label>E-mail<input id="sE" type="email" autocomplete="username"></label>
+  <label>Mot de passe (8 caractères minimum)<input id="sP" type="password" autocomplete="new-password"></label><button class="b calc" onclick="doSetup()">Créer mon compte</button></div>`)}
+async function doLogin(){const r=await api('/api/auth/login',{email:$('#lE').value,password:$('#lP').value});setUser(r.user);$('.fab').style.display='';await loadEnts()}
+async function doSetup(){const r=await api('/api/auth/setup',{name:$('#sN').value,email:$('#sE').value,password:$('#sP').value});setUser(r.user);$('.fab').style.display='';await loadEnts()}
+async function logout(){await api('/api/auth/logout',{});ENT=null;showLogin()}
+function pwdForm(){$('#menu').classList.add('hidden');$('#view').innerHTML=`<div class="card"><h2>Changer de mot de passe</h2><div class="form"><label>Actuel<input type="password" id="pO"></label><label>Nouveau<input type="password" id="pN"></label><button class="b calc" onclick="api('/api/auth/password',{old:$('#pO').value,new:$('#pN').value}).then(r=>{toast(r.message);showLogin()})">Valider</button></div></div>`;scrollTo(0,0)}
 async function loadEnts(sel){
   ENTS=await api('/api/entities');
   if(!ENTS.length){$('#hero').innerHTML=`<p class="eyebrow">Bienvenue</p><h1>Votre compta.<br>Vos impôts.<br>Automatiquement.</h1><p class="lead">Entreprise ou particulier : importez vos relevés, l'IA s'occupe du reste.</p><p class="row" style="margin-top:28px"><button class="b" onclick="newEntity()">Créer mon dossier</button><span class="muted small">ou relancez avec <code>--demo</code></span></p>`;return}
   let saved;try{saved=localStorage.getItem('ent')}catch{}
-  ENT=ENTS.find(e=>e.id==(sel||saved))||ENTS[0];
+  ENT=ENTS.find(e=>e.id==(sel||saved))||ENTS[0];ROLE=ENT.role;
   $('#ent').innerHTML=ENTS.map(e=>`<option value="${e.id}" ${e.id==ENT.id?'selected':''}>${esc(e.name)}</option>`).join('');
   render();
 }
@@ -150,10 +191,11 @@ async function newEntity(){
   <div id="entOpts" class="form" style="margin-top:10px">
   <label>Forme juridique<select id="nForm"><option>SASU</option><option>SAS</option><option>SARL</option><option>EURL</option><option>EI</option><option>Micro-entreprise</option></select></label>
   <label>Régime de TVA<select id="nTva"><option value="reel">Réel (CA3)</option><option value="franchise">Franchise en base</option></select></label>
+  <label>Exigibilité TVA (services)<select id="nEx"><option value="encaissements">Sur les encaissements (par défaut)</option><option value="debits">Sur les débits (option)</option></select></label>
   <label>SIRET<input id="nSiret"></label><label>Adresse<input id="nAddr"></label></div>
   <p><button class="b" onclick="createEnt()">Créer</button></p></div>`}
 async function createEnt(){
-  const k=$('#nKind').value;const r=await api('/api/entities',{name:$('#nName').value||'Nouveau dossier',kind:k,legal_form:k=='entreprise'?$('#nForm').value:null,tva_regime:k=='entreprise'?$('#nTva').value:'aucune',siret:$('#nSiret').value,address:$('#nAddr').value});
+  const k=$('#nKind').value;const r=await api('/api/entities',{name:$('#nName').value||'Nouveau dossier',kind:k,legal_form:k=='entreprise'?$('#nForm').value:null,tva_regime:k=='entreprise'?$('#nTva').value:'aucune',tva_exigibilite:k=='entreprise'?$('#nEx').value:'debits',siret:$('#nSiret').value,address:$('#nAddr').value});
   toast('Dossier créé, plan comptable installé');loadEnts(r.id)}
 
 const HERO={dash:['Tableau de bord.','Vos chiffres clés, à jour à chaque opération.'],
@@ -164,14 +206,18 @@ const HERO={dash:['Tableau de bord.','Vos chiffres clés, à jour à chaque opé
  tva:['TVA.','Votre CA3, calculée ligne par ligne.'],
  tax:['Impôts.','Votre déclaration, pré-remplie par l\'IA.'],
  ai:['Demandez. Tout simplement.','Un assistant comptable et fiscal qui connaît votre dossier.'],
- close:['Clôture & exports.','Amortissements, impôt, verrouillage et FEC. En une fois.']};
+ close:['Clôture & exports.','Amortissements, impôt, verrouillage, FEC, PDF et Excel.'],
+ quotes:['Devis.','Du devis à la facture, en un clic.'],
+ ndf:['Notes de frais.','Une photo du ticket. L\'IA fait le reste.'],
+ pay:['Paie.','Bulletins, charges, prélèvement à la source et DSN.'],
+ set:['Paramètres.','Dossier, TVA, e-mail, télédéclaration et membres.']};
 function setHero(){const [t,l]=HERO[TAB];const P=ENT.kind=='particulier';
   const title={rep:P?'Budget.':t,tax:P?'Vos impôts. Pré-remplis.':t,close:P?'Exports.':t}[TAB]||t;
-  $('#hero').innerHTML=`<p class="eyebrow">${esc(ENT.name)} · ${YEAR}</p><h1>${title}</h1><p class="lead">${l}</p>`}
-function render(){setHero();document.querySelector('.fab').style.display=TAB=='ai'?'none':'';
+  $('#hero').innerHTML=`<p class="eyebrow">${esc(ENT.name)} · ${YEAR}${ROLE&&ROLE!='proprietaire'?` · <span class="tag acc">${ROLE=='lecteur'?'lecture seule':ROLE}</span>`:''}</p><h1>${title}</h1><p class="lead">${l}</p>`}
+function render(){document.body.classList.toggle('ro',ROLE=='lecteur');setHero();document.querySelector('.fab').style.display=TAB=='ai'?'none':'';
   $('#nav').innerHTML=TABS[ENT.kind].map(([k,l])=>`<button class="${k==TAB?'on':''}" onclick="TAB='${k}';render()">${l}</button>`).join('');
   $('#view').innerHTML='';
-  ({dash,bank,inv,jrn,rep,tva,tax,ai:assistant,close})[TAB]().catch(e=>console.error(e));
+  ({dash,bank,inv,jrn,rep,tva,tax,ai:assistant,close,quotes,ndf,pay,set:settings})[TAB]().catch(e=>console.error(e));
 }
 
 // ---------- Tableau de bord ----------
@@ -220,26 +266,40 @@ async function valAll(){const r=await api('/api/bank/validate-confident',{min_co
 
 // ---------- Factures ----------
 async function inv(){
-  const list=await api('/api/invoices');ACCS=await api('/api/accounts');
-  $('#view').innerHTML=`<div class="card"><h2>Nouvelle facture</h2><div class="form">
+  const [list,rem]=await Promise.all([api('/api/invoices'),api('/api/reminders')]);ACCS=await api('/api/accounts');
+  $('#view').innerHTML=`<div class="card"><h2>Nouvelle facture</h2>${dropZone('invDrop','Importer une facture fournisseur','readInvFile')}<div class="form" style="margin-top:16px">
    <label>Type<select id="iK"><option value="sale">Vente (client)</option><option value="purchase">Achat (fournisseur)</option></select></label>
    <label>Tiers<input id="iP" placeholder="Nom du client / fournisseur"></label><label>Date<input type="date" id="iD" value="${new Date().toISOString().slice(0,10)}"></label>
    <label>N° (achats)<input id="iN" placeholder="auto pour les ventes"></label>
-   <label>Compte<select id="iA"><option value="">Par défaut (706 / 606)</option>${ACCS.filter(a=>/^[267]/.test(a.code)).map(a=>`<option value="${a.code}">${a.code} ${esc(a.label)}</option>`).join('')}</select></label></div>
+   <label>Compte<select id="iA"><option value="">Par défaut (706 / 606)</option>${ACCS.filter(a=>/^[267]/.test(a.code)).map(a=>`<option value="${a.code}">${a.code} ${esc(a.label)}</option>`).join('')}</select></label>
+   <label>Nature<select id="iNat"><option value="services">Prestations de services</option><option value="biens">Livraison de biens</option></select></label>
+   <label>E-mail du client (relances)<input id="iEm" type="email"></label></div>
    <h3>Lignes</h3><div id="iL"></div><p class="row"><button class="g" onclick="addLine()">+ Ligne</button><button class="b" onclick="saveInv()">Enregistrer & comptabiliser</button></p>
    <details><summary class="muted">Extraire automatiquement depuis le texte d'une facture (IA)</summary><textarea id="iT" placeholder="Collez ici le texte de la facture fournisseur (PDF copié, OCR…)"></textarea><button class="g" onclick="extractInv()">Extraire</button></details></div>
   <div class="card"><h2>Factures</h2><div class="scroll"><table><tr><th>N°</th><th>Date</th><th>Tiers</th><th class="n">HT</th><th class="n">TVA</th><th class="n">TTC</th><th>Statut</th><th></th></tr>
   ${list.map(i=>`<tr><td>${esc(i.number)}</td><td>${i.date}</td><td>${esc(i.party)} <span class="small muted">${i.kind=='sale'?'client':'fournisseur'}</span></td><td class="n">${fmt(i.ht)}</td><td class="n">${fmt(i.tva)}</td><td class="n">${fmt(i.ttc)}</td>
   <td>${i.status=='paid'?'<span style="color:var(--ok)">Réglée</span>':(i.due<new Date().toISOString().slice(0,10)?'<span style="color:var(--bad)">Échue</span>':'Ouverte')}</td>
-  <td class="row">${i.status!='paid'?`<button class="g" onclick="payInv(${i.id})">Marquer réglée</button>`:''}${i.kind=='sale'?`<button class="g" onclick="openInv(${i.id})">PDF / imprimer</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Aucune facture.</td></tr>'}</table></div></div>`;
+  <td class="row">${i.status!='paid'?`<button class="g" onclick="payInv(${i.id})">Marquer réglée</button>`:''}<button class="g small" onclick="openFile('/api/invoices/${i.id}/pdf')">PDF</button></td></tr>`).join('')||'<tr><td colspan="8" class="muted">Aucune facture.</td></tr>'}</table></div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><h2>Relances clients</h2><button class="b" onclick="autoRem()">Envoyer les relances dues</button></div>
+   <p class="muted small">Niveau 1 à J+1 (rappel courtois), niveau 2 à J+15 (relance ferme), niveau 3 à J+30 (mise en demeure avec pénalités et indemnité de 40 €). La facture PDF est jointe. Sans serveur SMTP configuré, l'e-mail est préparé et affiché.</p>
+   <div class="scroll"><table><tr><th>Facture</th><th>Client</th><th class="n">TTC</th><th>Retard</th><th>Dernière</th><th>E-mail</th><th></th></tr>
+   ${rem.map(x=>`<tr><td>${esc(x.number)}</td><td>${esc(x.party)}</td><td class="n">${fmt(x.ttc)}</td><td><span class="tag bad">${x.retard_jours} j</span></td><td>${x.derniere_relance?'Niveau '+x.derniere_relance:'—'}</td>
+   <td><input id="rem${x.invoice_id}" type="email" value="${esc(x.email||'')}" placeholder="client@…" style="min-height:34px;padding:5px 9px"></td>
+   <td>${x.prochaine?`<button class="g small wr" onclick="sendRem(${x.invoice_id})">Relancer (niv. ${x.prochaine})</button>`:'<span class="small muted">à jour</span>'}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucune facture en retard. 🎉</td></tr>'}</table></div><div id="remOut"></div></div>`;
   addLine();
 }
 function addLine(l={}){$('#iL').insertAdjacentHTML('beforeend',`<div class="form il" style="margin-bottom:8px"><label>Désignation<input class="lL" value="${esc(l.label||'')}"></label><label>Qté<input class="lQ" type="number" step="any" value="${l.qty||1}"></label><label>PU HT (€)<input class="lU" type="number" step="0.01" value="${l.unit_price||''}"></label><label>TVA %<select class="lR">${[20,10,5.5,2.1,0].map(v=>`<option ${v==(l.tva_rate??20)?'selected':''}>${v}</option>`).join('')}</select></label></div>`)}
 async function saveInv(){const lines=[...document.querySelectorAll('.il')].map(d=>({label:d.querySelector('.lL').value,qty:+d.querySelector('.lQ').value,unit_price:+d.querySelector('.lU').value,tva_rate:+d.querySelector('.lR').value})).filter(l=>l.unit_price);
-  await api('/api/invoices',{kind:$('#iK').value,party:$('#iP').value||'—',date:$('#iD').value,number:$('#iN').value||null,account:$('#iA').value||null,lines});toast('Facture enregistrée et comptabilisée');inv()}
+  await api('/api/invoices',{kind:$('#iK').value,party:$('#iP').value||'—',date:$('#iD').value,number:$('#iN').value||null,account:$('#iA').value||null,nature:$('#iNat').value,email:$('#iEm').value||null,lines});toast('Facture enregistrée et comptabilisée');inv()}
+async function readInvFile(f){if(!f)return;$('#invDrop').innerHTML='Lecture du document en cours…';
+  try{const d=await api('/api/documents/read',{data:await readB64(f),mime:f.type,filename:f.name});fillInv(d);toast('Facture lue ('+d.source+') — vérifiez avant d\'enregistrer')}
+  catch(e){}finally{$('#invDrop').innerHTML='✦ Importer une autre facture<br><span class="small">PDF ou photo</span>'}}
+function fillInv(d){$('#iK').value='purchase';$('#iP').value=d.party||'';if(d.date)$('#iD').value=d.date;$('#iN').value=d.number||'';$('#iL').innerHTML='';(d.lines||[]).forEach(addLine)}
 async function extractInv(){const d=await api('/api/invoices/extract',{text:$('#iT').value});$('#iK').value='purchase';$('#iP').value=d.party||'';if(d.date)$('#iD').value=d.date;$('#iN').value=d.number||'';$('#iL').innerHTML='';(d.lines||[]).forEach(addLine);toast('Champs extraits ('+(d.source=='ia'?'IA':'règles')+') — vérifiez avant d\'enregistrer')}
 async function payInv(id){await api(`/api/invoices/${id}/pay`,{date:new Date().toISOString().slice(0,10)});toast('Règlement comptabilisé');inv()}
-async function openInv(id){const h=await api(`/api/invoices/${id}/html`);const w=window.open('');if(w){w.document.write(h);w.document.close()}else toast('Autorisez les fenêtres pop-up')}
+async function sendRem(id){const r=await api(`/api/reminders/${id}/send`,{email:$('#rem'+id).value});showMail(r,'#remOut');if(r.sent)inv()}
+async function autoRem(){const r=await api('/api/reminders/auto',{});toast(r.length?`${r.length} relance(s) traitée(s)`:'Aucune relance due (vérifiez les e-mails clients)');inv()}
+function showMail(r,sel){toast(r.message);if(!r.sent&&r.subject)$(sel).innerHTML=`<div class="card" style="margin-top:14px"><h3>${esc(r.subject)}</h3><div class="al attention">${esc(r.message)}</div><pre style="color:var(--ink)">${esc(r.body)}</pre></div>`}
 
 // ---------- Écritures ----------
 async function jrn(){
@@ -264,10 +324,10 @@ async function rep(){
   const isP=ENT.kind=='particulier';
   $('#view').innerHTML=`<div class="grid"><div class="card"><h2>${isP?'Dépenses':'Charges'}</h2>${tbl(res.charges,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>Total : ${fmt(res.total_charges)}</strong></p></div>
    <div class="card"><h2>${isP?'Revenus':'Produits'}</h2>${tbl(res.produits,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>Total : ${fmt(res.total_produits)}</strong></p></div></div>
-   <div class="card"><h2>${isP?'Solde (épargne)':'Résultat de l\'exercice'} : <span style="color:${res.resultat<0?'var(--bad)':'var(--ok)'}">${fmt(res.resultat)}</span></h2></div>
-   ${isP?'':`<div class="grid"><div class="card"><h2>Bilan — Actif au 31/12/${YEAR}</h2>${tbl(bil.actif,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>${fmt(bil.total_actif)}</strong></p></div>
+   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">${isP?'Solde (épargne)':'Résultat de l\'exercice'} : <span style="color:${res.resultat<0?'var(--bad)':'var(--ok)'}">${fmt(res.resultat)}</span></h2>${exportBtns('resultat')}</div></div>
+   ${isP?'':`<div class="grid"><div class="card"><div class="row" style="justify-content:space-between"><h2>Bilan — Actif au 31/12/${YEAR}</h2>${exportBtns('bilan')}</div>${tbl(bil.actif,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>${fmt(bil.total_actif)}</strong></p></div>
    <div class="card"><h2>Bilan — Passif</h2>${tbl(bil.passif,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>${fmt(bil.total_passif)}</strong> ${bil.equilibre?'<span style="color:var(--ok)">✓ équilibré</span>':'<span style="color:var(--bad)">déséquilibré</span>'}</p></div></div>`}
-   <div class="card"><h2>Balance générale ${YEAR}</h2>${tbl(bal.rows,[['Compte','account'],['Libellé','label'],['Débit','debit','n'],['Crédit','credit','n'],['Solde','solde','n']])}<p>Totaux : ${fmt(bal.total_debit)} / ${fmt(bal.total_credit)}</p></div>`;
+   <div class="card"><div class="row" style="justify-content:space-between"><h2>Balance générale ${YEAR}</h2>${exportBtns('balance')}</div>${tbl(bal.rows,[['Compte','account'],['Libellé','label'],['Débit','debit','n'],['Crédit','credit','n'],['Solde','solde','n']])}<p>Totaux : ${fmt(bal.total_debit)} / ${fmt(bal.total_credit)}</p></div>`;
 }
 
 // ---------- TVA ----------
@@ -290,16 +350,24 @@ async function tax(){
   let isBlock='';
   if(!isP){if(['SAS','SASU','SARL','EURL','SA'].includes(ENT.legal_form)){const r=await api(`/api/tax/is?year=${YEAR}`);
     isBlock=`<div class="card"><h2>Impôt sur les sociétés ${YEAR} (estimation)</h2><div class="grid"><div class="kpi"><div class="l">Résultat fiscal estimé</div><div class="v">${fmt(r.base)}</div></div><div class="kpi"><div class="l">IS</div><div class="v">${fmt(r.is)}</div></div><div class="kpi"><div class="l">Acompte trimestriel</div><div class="v">${fmt(r.acomptes_trimestriels)}</div></div></div><p class="muted small">${esc(r.detail)} Réintégrations fiscales (amendes, quote-part non déductible…) à vérifier.</p></div>`}
-    else isBlock=`<div class="card"><h2>Micro-entreprise / EI : cotisations et revenu imposable</h2><div class="form"><label>Chiffre d'affaires annuel (€)<input id="mCa" type="number"></label><label>Activité<select id="mAct"><option value="bnc">Libérale (BNC)</option><option value="bic_service">Prestations BIC</option><option value="bic_vente">Ventes</option></select></label><label>Versement libératoire<select id="mVl"><option value="">Non</option><option value="1">Oui</option></select></label><button class="b" onclick="microCalc()">Calculer</button></div><div id="mOut"></div></div>`}
-  $('#view').innerHTML=`${isBlock}<div class="card"><h2>${isP?'Déclaration de revenus (2042) — pré-remplie par l\'IA':'Impôt sur le revenu du dirigeant (2042)'}</h2>
+    else isBlock=`<div class="card"><h2>Micro-entreprise / EI : cotisations et revenu imposable</h2><div class="form"><label>Chiffre d'affaires annuel (€)<input id="mCa" type="number"></label><label>Activité<select id="mAct"><option value="bnc">Libérale (BNC)</option><option value="bic_service">Prestations BIC</option><option value="bic_vente">Ventes</option></select></label><label>Versement libératoire<select id="mVl"><option value="">Non</option><option value="1">Oui</option></select></label><button class="b calc" onclick="microCalc()">Calculer</button></div><div id="mOut"></div></div>`}
+  const liasseBlock=!isP?`<div class="card"><div class="row" style="justify-content:space-between"><h2>Liasse fiscale ${YEAR} — 2033 & 2065</h2>${exportBtns('liasse')}</div>
+   <p class="muted small">Générée depuis la comptabilité. Ajoutez les retraitements extra-comptables avant de transmettre.</p>
+   <div class="form"><label>Amendes et pénalités (réintégration)<input id="lA" type="number" step="0.01"></label><label>Charges somptuaires / non déductibles<input id="lS" type="number" step="0.01"></label>
+   <label>Déductions diverses<input id="lD" type="number" step="0.01"></label><button class="b calc" onclick="liasseCalc()">Générer la liasse</button></div><div id="lOut"></div></div>`:'';
+  const foncierBlock=isP?`<div class="card"><h2>Revenus fonciers au réel (2044)</h2><p class="muted small">Un bloc par bien loué. Le déficit hors intérêts s'impute sur le revenu global (10 700 € max), le reste est reportable 10 ans.</p>
+   <div id="biens"></div><p class="row"><button class="g calc" onclick="addBien()">+ Bien</button><label style="flex-direction:row;align-items:center;gap:8px">Déficits fonciers antérieurs<input id="fAnt" type="number" style="width:140px"></label><button class="b calc" onclick="foncierCalc()">Calculer la 2044</button></p><div id="fOut"></div></div>`:'';
+  $('#view').innerHTML=`${isBlock}${liasseBlock}${foncierBlock}<div class="card"><h2>${isP?'Déclaration de revenus (2042) — pré-remplie par l\'IA':'Impôt sur le revenu du dirigeant (2042)'}</h2>
    ${isP?`<p class="muted small">Montants déduits automatiquement de vos opérations ${YEAR} catégorisées. ${esc(pre.avertissement)}</p>`:''}
    <div class="form"><label>Année des revenus<input id="tY" type="number" value="${YEAR}"></label><label>Situation<select id="tS"><option value="celibataire">Célibataire / divorcé·e / veuf·ve</option><option value="marie">Marié·e</option><option value="pacse">Pacsé·e</option></select></label><label>Enfants à charge<input id="tE" type="number" min="0" value="0"></label>
    ${IRF.map(([k,l])=>`<label>${l}<input id="f_${k}" type="number" step="0.01" value="${pre.donnees[k]??''}"></label>`).join('')}</div>
-   <p><button class="b" onclick="irCalc()">Calculer mon impôt</button></p><div id="irOut"></div></div>`;
+   <p><button class="b calc" onclick="irCalc()">Calculer mon impôt</button></p><div id="irOut"></div></div>`;
+  if(isP)addBien();
 }
 async function microCalc(){const r=await api('/api/tax/micro',{ca:+$('#mCa').value,activite:$('#mAct').value,vl:!!$('#mVl').value});$('#mOut').innerHTML=`<div class="grid" style="margin-top:12px">${[['Cotisations URSSAF',r.cotisations_urssaf],['Versement libératoire',r.versement_liberatoire],['Revenu imposable (après abattement)',r.revenu_imposable_micro],['Net avant IR',r.net_avant_ir]].map(([l,v])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${fmt(v)}</div></div>`).join('')}</div><p class="muted small">${esc(r.note)}</p>`}
 async function irCalc(){
   const p={situation:$('#tS').value,enfants:+$('#tE').value};IRF.forEach(([k])=>{const v=$('#f_'+k).value;if(v)p[k]=+v});
+  if(window._fon){p.foncier_reel=window._fon.revenu_imposable;p.deficit_foncier_rg=window._fon.deficit_revenu_global;p.cases_foncier=window._fon.cases_2042}
   const {calcul:c}=await api('/api/tax/ir',{year:+$('#tY').value,profile:p});
   $('#irOut').innerHTML=`<div class="grid" style="margin-top:12px">${[['Revenu net imposable',c.revenu_net_imposable],['Impôt brut',c.impot_brut],['Décote',c.decote],['Réductions',c.reductions],['Crédits d\'impôt',c.credits],['Prélèvements sociaux',c.prelevements_sociaux]].map(([l,v])=>`<div class="kpi"><div class="l">${l}</div><div class="v" style="font-size:18px">${fmt(v)}</div></div>`).join('')}</div>
    <div class="card" style="margin-top:12px;background:var(--soft)"><div class="kpi"><div class="l">${c.total_a_payer<0?'Remboursement estimé':'Total à payer'}</div><div class="v">${fmt(Math.abs(c.total_a_payer))}</div></div><div class="small muted">${c.parts} part(s) · TMI ${c.tmi} · taux moyen ${c.taux_moyen}</div></div>
@@ -309,7 +377,9 @@ async function irCalc(){
 }
 async function declare(type,period,json){
   const r=await api('/api/declarations',{type,period,data:JSON.parse(json),submit:true});
-  $('#declOut').innerHTML=`<div class="card" style="margin-top:12px"><h3>Déclaration n° ${r.id} — ${r.status=='deposee'?'déposée ✓':r.status=='prete'?'prête à déposer':'erreurs'}</h3>
+  const lab={deposee:'déposée ✓',transmise:'transmise au partenaire',simulee:'simulée (mode test) ✓',prete:'prête à déposer'}[r.status]||'erreurs';
+  const tgt=document.querySelectorAll('#declOut');const box=tgt[tgt.length-1];
+  box.innerHTML=`<div class="card" style="margin-top:12px"><h3>Déclaration n° ${r.id} — ${lab}</h3>${r.edi?`<div class="al ${r.edi.status=='accepte'?'ok':'critique'}">EDI (${esc(r.edi.ref||'—')}) : ${esc(r.edi.message||r.edi.status)}</div>`:''}
    ${r.erreurs.map(e=>`<div class="al critique">${esc(e)}</div>`).join('')}${r.depot?`<div class="al attention">${esc(r.depot)}</div>`:''}
    <ol>${r.guide.map(g=>`<li>${esc(g)}</li>`).join('')}</ol><button class="g" onclick="api('/api/declarations/${r.id}/filed',{}).then(()=>toast('Marquée comme déposée'))">J'ai déposé cette déclaration</button></div>`;
 }
@@ -332,13 +402,162 @@ async function close(){
    ${tbl(assets,[['Bien','label'],['Date','date'],['Coût','cost','n'],['Durée (ans)','years'],['Amorti','amortized','n']])}</div>
    <div class="card"><h2>Clôture de l'exercice ${YEAR}</h2><p class="muted">Passe les dotations aux amortissements, calcule et comptabilise l'IS (sociétés), puis verrouille l'exercice (plus aucune écriture possible sur la période). ${ENT.closed_until?`<br>Clôturé jusqu'au : <strong>${ENT.closed_until}</strong>`:''}</p>
    <button class="b" onclick="closeYear()">Clôturer ${YEAR}</button><pre id="cOut" class="small"></pre></div>`:''}
-  <div class="card"><h2>Exports</h2><p class="muted small">Le FEC (Fichier des Écritures Comptables) est exigé en cas de contrôle fiscal (art. L47 A du LPF).</p>
-   <div class="row"><a class="g" style="text-decoration:none;padding:7px 12px;border:1px solid var(--line);border-radius:8px" href="#" onclick="dlFec();return false">Télécharger le FEC ${YEAR}</a></div></div>
+  <div class="card"><h2>Exports ${YEAR}</h2><p class="muted small">Le FEC (Fichier des Écritures Comptables) est exigé en cas de contrôle fiscal (art. L47 A du LPF).</p>
+   <table>${[['resultat',isE?'Compte de résultat':'Revenus et dépenses'],...(isE?[['bilan','Bilan']]:[]),['balance','Balance générale'],['journal','Journal général'],...(isE?[['factures','Registre des factures'],['liasse','Liasse fiscale 2033 / 2065'],['paie','Livre de paie']]:[])].map(([k,l])=>`<tr><td>${l}</td><td style="text-align:right">${exportBtns(k)}</td></tr>`).join('')}
+   <tr><td>FEC (format DGFiP)</td><td style="text-align:right"><button class="g small" onclick="download('/api/export/fec?year=${YEAR}')">Télécharger</button></td></tr></table></div>
   <div class="card"><h2>Historique des déclarations</h2>${tbl(decls,[['N°','id'],['Type','type'],['Période','period'],['Statut','status'],['Créée','created']])}</div>`;
 }
 async function addAsset(){await api('/api/assets',{label:$('#aL').value,date:$('#aD').value,cost:+$('#aC').value,years:+$('#aY').value});toast('Immobilisation enregistrée');close()}
 async function closeYear(){if(!confirm(`Clôturer définitivement ${YEAR} ?`))return;const r=await api('/api/closing',{year:YEAR});$('#cOut').textContent=JSON.stringify(r,null,2);ENTS=await api('/api/entities');ENT=ENTS.find(e=>e.id==ENT.id);toast('Exercice clôturé')}
-async function dlFec(){const t=await api(`/api/export/fec?year=${YEAR}`);const siren=(ENT.siret||'000000000').replace(/\s/g,'').slice(0,9);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));a.download=`${siren}FEC${YEAR}1231.txt`;a.click()}
+// ---------- Liasse fiscale ----------
+async function liasseCalc(){
+  const rein={},ded={};if(+$('#lA').value)rein['Amendes et pénalités']=+$('#lA').value;if(+$('#lS').value)rein['Charges non déductibles']=+$('#lS').value;if(+$('#lD').value)ded['Déductions diverses']=+$('#lD').value;
+  const L=await api('/api/liasse',{year:YEAR,reintegrations:rein,deductions:ded});window._liasse=L;
+  const t=(rows)=>`<div class="scroll"><table>${rows.map(x=>`<tr><td style="width:60px" class="muted">${x.ligne}</td><td>${esc(x.libelle)}</td><td class="n">${fmt(x.montant)}</td></tr>`).join('')}</table></div>`;
+  const rf=L.resultat_fiscal;
+  $('#lOut').innerHTML=`<div class="grid" style="margin-top:18px"><div class="card"><h3 style="margin-top:0">2033-A · Actif</h3>${t(L['2033A_actif'])}</div><div class="card"><h3 style="margin-top:0">2033-A · Passif</h3>${t(L['2033A_passif'])}
+   <p class="small">${L.equilibre?'<span class="tag ok">Bilan équilibré</span>':'<span class="tag bad">Bilan déséquilibré</span>'}</p></div></div>
+   <div class="card"><h3 style="margin-top:0">2033-B · Compte de résultat</h3>${t(L['2033B'].filter(x=>x.montant||['232','264','270','310'].includes(x.ligne)))}</div>
+   <div class="grid"><div class="card"><h3 style="margin-top:0">Résultat fiscal</h3><table><tr><td>Résultat comptable</td><td class="n">${fmt(rf.resultat_comptable)}</td></tr>
+   ${Object.entries(rf.reintegrations).map(([k,v])=>`<tr><td>+ ${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}${Object.entries(rf.deductions).map(([k,v])=>`<tr><td>− ${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}
+   <tr><td><b>370 Bénéfice fiscal</b></td><td class="n"><b>${fmt(rf['370 Résultat fiscal — bénéfice'])}</b></td></tr><tr><td>372 Déficit</td><td class="n">${fmt(rf['372 Résultat fiscal — déficit'])}</td></tr></table></div>
+   <div class="card"><h3 style="margin-top:0">2065 · Impôt sur les sociétés</h3><table>${Object.entries(L['2065']).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${typeof v=='number'?fmt(v):esc(v)}</td></tr>`).join('')}</table></div></div>
+   <div class="al info">${esc(L.avertissement)}</div>
+   <p class="row"><button class="b" onclick="declLiasse()">Transmettre la liasse (EDI-TDFC)</button></p><div id="declOut"></div>`}
+function declLiasse(){declare('liasse',String(YEAR),JSON.stringify(window._liasse))}
+
+// ---------- Revenus fonciers (2044) ----------
+const BIENF=[['loyers','Loyers bruts encaissés'],['frais_administration','Frais de gestion / agence'],['assurance','Assurance (PNO…)'],['travaux','Travaux réparation, entretien, amélioration'],['taxe_fonciere','Taxe foncière (hors TEOM)'],['provisions_copro','Provisions de copropriété'],['regularisation_copro','Régularisation provisions N-1'],['interets','Intérêts d\'emprunt']];
+function addBien(){const n=document.querySelectorAll('.bien').length+1;$('#biens').insertAdjacentHTML('beforeend',`<div class="card bien"><h3 style="margin-top:0">Bien ${n}</h3><div class="form"><label>Nom / adresse<input class="b_nom" value="Bien ${n}"></label>${BIENF.map(([k,l])=>`<label>${l}<input class="b_${k}" type="number" step="0.01"></label>`).join('')}</div></div>`)}
+async function foncierCalc(){
+  const biens=[...document.querySelectorAll('.bien')].map(d=>{const o={nom:d.querySelector('.b_nom').value};BIENF.forEach(([k])=>{const v=d.querySelector('.b_'+k).value;if(v)o[k]=+v});return o}).filter(b=>b.loyers||b.interets);
+  const r=await api('/api/tax/foncier',{biens,deficits_anterieurs:+$('#fAnt').value||0});window._fon=r;
+  $('#fOut').innerHTML=`<div class="grid kpis" style="margin-top:14px">${[['Revenus bruts',r.revenus_bruts],['Charges',r.charges],['Intérêts',r.interets],['Résultat foncier',r.resultat],['Déficit imputable sur le revenu global',r.deficit_revenu_global],['Déficit reportable',r.deficit_reportable]].map(([l,v])=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${fmt(v)}</div></div>`).join('')}</div>
+   <h3>Cases 2042</h3><table>${Object.entries(r.cases_2042).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')||'<tr><td class="muted">—</td></tr>'}</table>
+   ${r.notes.map(n=>`<div class="al info">${esc(n)}</div>`).join('')}<p class="muted small">Ces montants sont repris automatiquement dans le calcul de l'impôt ci-dessous.</p>`;
+  const lf=$('#f_loyers_micro_foncier');if(lf&&biens.length)lf.value='';}
+
+// ---------- Devis ----------
+async function quotes(){
+  const list=await api('/api/quotes');
+  const st={brouillon:'',envoye:'acc',accepte:'ok',refuse:'bad',facture:'ok'};
+  $('#view').innerHTML=`<div class="card wr"><h2>Nouveau devis</h2><div class="form"><label>Client<input id="qP"></label><label>E-mail du client<input id="qE" type="email"></label>
+   <label>Date<input type="date" id="qD" value="${today()}"></label><label>Validité (jours)<input type="number" id="qV" value="30"></label></div>
+   <h3>Lignes</h3><div id="iL"></div><p class="row"><button class="g" onclick="addLine()">+ Ligne</button><button class="b" onclick="saveQuote()">Créer le devis</button></p></div>
+  <div class="card"><h2>Devis</h2><div class="scroll"><table><tr><th>N°</th><th>Date</th><th>Client</th><th class="n">TTC</th><th>Validité</th><th>Statut</th><th></th></tr>
+  ${list.map(q=>`<tr><td>${esc(q.number)}</td><td>${q.date}</td><td>${esc(q.party)}</td><td class="n">${fmt(q.ttc)}</td><td>${q.valid_until}</td><td><span class="tag ${st[q.status]||''}">${q.status=='facture'?'facturé':q.status}</span></td>
+  <td class="row"><button class="g small" onclick="openFile('/api/quotes/${q.id}/pdf')">PDF</button>${q.status!='facture'?`<button class="g small wr" onclick="sendQuote(${q.id})">Envoyer</button>
+   <select class="wr" style="min-height:32px;padding:4px 8px;font-size:13px" onchange="api('/api/quotes/${q.id}/status',{status:this.value}).then(quotes)"><option value="">Statut…</option><option value="accepte">Accepté</option><option value="refuse">Refusé</option><option value="envoye">Envoyé</option></select>
+   <button class="b wr" style="min-height:32px;padding:4px 14px;font-size:13px" onclick="q2inv(${q.id})">Facturer</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucun devis.</td></tr>'}</table></div><div id="qOut"></div></div>`;
+  addLine();
+}
+async function saveQuote(){const lines=[...document.querySelectorAll('.il')].map(d=>({label:d.querySelector('.lL').value,qty:+d.querySelector('.lQ').value,unit_price:+d.querySelector('.lU').value,tva_rate:+d.querySelector('.lR').value})).filter(l=>l.unit_price);
+  await api('/api/quotes',{party:$('#qP').value||'—',email:$('#qE').value||null,date:$('#qD').value,validity_days:+$('#qV').value,lines});toast('Devis créé');quotes()}
+async function sendQuote(id){const r=await api(`/api/quotes/${id}/send`,{});toast(r.message);if(r.sent)quotes()}
+async function q2inv(id){if(!confirm('Transformer ce devis en facture (comptabilisée) ?'))return;await api(`/api/quotes/${id}/invoice`,{date:today()});toast('Facture créée et comptabilisée');TAB='inv';render()}
+
+// ---------- Notes de frais ----------
+const CATS=[['restaurant','Restaurant / repas d\'affaires'],['carburant','Carburant'],['transport','Train, avion, taxi'],['hebergement','Hôtel'],['peage_parking','Péage / parking'],['fournitures','Fournitures'],['logiciel','Logiciel / abonnement'],['telecom','Téléphone / internet'],['cadeau','Cadeau client'],['autre','Autre']];
+async function ndf(){
+  const list=await api('/api/expenses');window._ndfFile=null;
+  const lab={a_valider:['à valider','warn'],validee:['validée','acc'],remboursee:['remboursée','ok']};
+  const tot=list.filter(x=>x.status=='validee').reduce((s,x)=>s+x.ttc,0);
+  $('#view').innerHTML=`<div class="card wr"><div class="seg"><button class="on" id="sgT" onclick="ndfMode(0)">Dépense</button><button id="sgK" onclick="ndfMode(1)">Kilomètres</button></div>
+   <div id="ndfT">${dropZone('ndfDrop','Ajouter le justificatif (ticket, facture)','readReceipt')}
+   <div class="form" style="margin-top:16px"><label>Date<input type="date" id="xD" value="${today()}"></label><label>Personne<input id="xP" value="${esc(ME?.name?.split(' ')[0]||'')}"></label>
+   <label>Libellé<input id="xL"></label><label>Catégorie<select id="xC" onchange="$('#xR').value={restaurant:10,carburant:20,transport:0,hebergement:0,peage_parking:20,fournitures:20,logiciel:20,telecom:20,cadeau:20,autre:20}[this.value]">${CATS.map(([k,l])=>`<option value="${k}">${l}</option>`).join('')}</select></label>
+   <label>Montant TTC (€)<input id="xT" type="number" step="0.01"></label><label>Taux de TVA récupérable (%)<select id="xR">${[20,10,5.5,2.1,0].map(v=>`<option ${v==10?'selected':''}>${v}</option>`).join('')}</select></label></div></div>
+   <div id="ndfK" class="hidden"><div class="form"><label>Date<input type="date" id="kD" value="${today()}"></label><label>Personne<input id="kP" value="${esc(ME?.name?.split(' ')[0]||'')}"></label>
+   <label>Trajet<input id="kL" placeholder="Lyon → Grenoble, RDV client"></label><label>Distance (km)<input id="kK" type="number"></label>
+   <label>Puissance fiscale<select id="kC">${[3,4,5,6,7].map(v=>`<option value="${v}" ${v==5?'selected':''}>${v} CV${v==7?' et +':''}</option>`).join('')}</select></label></div>
+   <p class="muted small">Barème kilométrique officiel (tranche jusqu'à 5 000 km/an). Pas de TVA récupérable sur les indemnités kilométriques.</p></div>
+   <p><button class="b" onclick="saveNdf()">Ajouter la note de frais</button></p>
+   <p class="muted small">TVA non récupérable appliquée automatiquement sur le transport de personnes et l'hébergement. Carburant : TVA récupérable à 80 % pour un véhicule de tourisme (ajustez le taux si besoin).</p></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><h2>Notes de frais</h2>${tot?`<button class="b" onclick="reimburse()">Rembourser ${fmt(tot)}</button>`:''}</div>
+   <div class="scroll"><table><tr><th>Date</th><th>Personne</th><th>Libellé</th><th class="n">TTC</th><th>TVA</th><th>Statut</th><th></th></tr>
+   ${list.map(x=>`<tr><td>${x.date}</td><td>${esc(x.person||'')}</td><td>${esc(x.label)}${x.km?` <span class="small muted">${x.km} km · ${x.cv} CV</span>`:''}</td><td class="n">${fmt(x.ttc)}</td><td>${x.tva_rate?x.tva_rate+' %':'—'}</td>
+   <td><span class="tag ${lab[x.status][1]}">${lab[x.status][0]}</span></td><td class="row">${x.has_file?`<button class="g small" onclick="openFile('/api/expenses/${x.id}/file')">Justificatif</button>`:''}${x.status=='a_valider'?`<button class="g small wr" onclick="api('/api/expenses/${x.id}/validate',{}).then(()=>{toast('Note validée et comptabilisée');ndf()})">Valider</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucune note de frais.</td></tr>'}</table></div></div>`;
+}
+function ndfMode(k){$('#ndfT').classList.toggle('hidden',!!k);$('#ndfK').classList.toggle('hidden',!k);$('#sgT').classList.toggle('on',!k);$('#sgK').classList.toggle('on',!!k);window._ndfKm=!!k}
+async function readReceipt(f){if(!f)return;const data=await readB64(f);window._ndfFile={name:f.name,mime:f.type,data};$('#ndfDrop').innerHTML='Lecture du justificatif…';
+  try{const d=await api('/api/expenses/receipt',{data,mime:f.type});if(d.date)$('#xD').value=d.date;$('#xL').value=d.label||'';if(d.ttc)$('#xT').value=d.ttc;$('#xC').value=d.category;if(d.tva_rate!=null)$('#xR').value=d.tva_rate;toast('Justificatif lu ('+d.source+') — vérifiez')}
+  catch(e){}finally{$('#ndfDrop').innerHTML=`✓ ${esc(f.name)} joint<br><span class="small">cliquez pour remplacer</span>`}}
+async function saveNdf(){
+  const b=window._ndfKm?{date:$('#kD').value,person:$('#kP').value,label:$('#kL').value,km:+$('#kK').value,cv:+$('#kC').value}
+   :{date:$('#xD').value,person:$('#xP').value,label:$('#xL').value||'Dépense',category:$('#xC').value,ttc:+$('#xT').value,tva_rate:+$('#xR').value,file:window._ndfFile};
+  await api('/api/expenses',b);toast('Note de frais ajoutée');window._ndfKm=false;ndf()}
+async function reimburse(){const list=await api('/api/expenses');const ids=list.filter(x=>x.status=='validee').map(x=>x.id);const r=await api('/api/expenses/reimburse',{ids,date:today()});toast(`Remboursement de ${fmt(r.total)} comptabilisé`);ndf()}
+
+// ---------- Paie ----------
+async function pay(){
+  const [emps,slips]=await Promise.all([api('/api/employees'),api('/api/payslips')]);
+  window._p=window._p||new Date().toISOString().slice(0,7);
+  $('#view').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><h2>Paie du mois</h2><input type="month" value="${window._p}" onchange="window._p=this.value;pay()"></div>
+   <div class="row wr"><button class="b" onclick="runPay()">Calculer et comptabiliser les bulletins</button><button class="g" onclick="paySal()">Virer les salaires</button>
+   <button class="g" onclick="download('/api/dsn?period=${window._p}&download=1')">Fichier DSN</button><button class="g" onclick="dsnSubmit()">Transmettre la DSN</button></div>
+   <p class="muted small">Taux de cotisations 2026 paramétrés dans <code>compta/payroll.py</code>, à vérifier sur urssaf.fr. DSN au format NEODeS : à contrôler avec DSN-Val avant dépôt sur net-entreprises.fr.</p><div id="declOut"></div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><h2>Bulletins</h2>${exportBtns('paie')}</div><div class="scroll"><table><tr><th>Période</th><th>Salarié</th><th class="n">Brut</th><th class="n">PAS</th><th class="n">Net à payer</th><th class="n">Coût employeur</th><th></th></tr>
+   ${slips.map(s=>`<tr><td>${s.period}</td><td>${esc(s.salarie)}</td><td class="n">${fmt(s.brut)}</td><td class="n">${fmt(s.pas)}</td><td class="n"><b>${fmt(s.net_a_payer)}</b></td><td class="n">${fmt(s.cout)}</td><td><button class="g small" onclick="openFile('/api/payslips/${s.id}/pdf')">Bulletin PDF</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucun bulletin.</td></tr>'}</table></div></div>
+  <div class="card"><h2>Salariés</h2><div class="scroll"><table><tr><th>Nom</th><th>Emploi</th><th>Statut</th><th>Contrat</th><th class="n">Brut mensuel</th><th>Entrée</th><th></th></tr>
+   ${emps.map(e=>`<tr><td>${esc(e.prenom)} ${esc(e.nom)}${e.actif?'':' <span class="tag">sorti</span>'}</td><td>${esc(e.emploi||'')}</td><td>${e.statut}</td><td>${e.contrat}</td><td class="n">${fmt(e.brut)}</td><td>${e.date_entree||''}</td><td><button class="g small wr" onclick='empForm(${JSON.stringify(e).replace(/'/g,"&#39;")})'>Modifier</button></td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucun salarié.</td></tr>'}</table></div>
+   <p class="wr"><button class="g" onclick="empForm({})">+ Ajouter un salarié</button></p><div id="empF"></div></div>`;
+}
+function empForm(e){const f=(k,l,t='text',x='')=>`<label>${l}<input id="e_${k}" type="${t}" value="${esc(e[k]??'')}" ${x}></label>`;
+  $('#empF').innerHTML=`<div class="card"><h3 style="margin-top:0">${e.id?'Modifier':'Nouveau'} salarié</h3><div class="form">${f('prenom','Prénom')}${f('nom','Nom')}${f('nir','N° de sécurité sociale')}${f('naissance','Naissance','date')}
+   ${f('emploi','Emploi')}<label>Statut<select id="e_statut"><option ${e.statut=='non-cadre'?'selected':''}>non-cadre</option><option ${e.statut=='cadre'?'selected':''}>cadre</option></select></label>
+   <label>Contrat<select id="e_contrat"><option ${e.contrat=='CDI'?'selected':''}>CDI</option><option ${e.contrat=='CDD'?'selected':''}>CDD</option></select></label>
+   ${f('date_entree','Date d\'entrée','date')}${f('brut','Salaire brut mensuel (€)','number','step="0.01"')}${f('heures','Heures mensuelles','number','step="0.01" placeholder="151.67"')}
+   ${f('mutuelle','Mutuelle (cotisation totale/mois €)','number','step="0.01"')}${f('taux_pas','Taux PAS personnalisé (%)','number','step="0.1" placeholder="vide = taux neutre"')}
+   <label>Actif<select id="e_actif"><option value="1">Oui</option><option value="0" ${e.actif===0?'selected':''}>Non (sorti)</option></select></label></div>
+   <p class="row"><button class="b" onclick="saveEmp(${e.id||0})">Enregistrer</button><button class="g" onclick="simEmp()">Simuler un bulletin</button></p><div id="simOut"></div></div>`;$('#empF').scrollIntoView({behavior:'smooth'})}
+const EMPK=['prenom','nom','nir','naissance','emploi','statut','contrat','date_entree','brut','heures','mutuelle','taux_pas','actif'];
+const empVals=()=>{const o={};EMPK.forEach(k=>{o[k]=$('#e_'+k).value});o.actif=+o.actif;o.heures=+o.heures||151.67;return o};
+async function saveEmp(id){await api('/api/employees',{...empVals(),id:id||undefined});toast('Salarié enregistré');pay()}
+async function simEmp(){const v=empVals();const b=await api('/api/payroll/simulate',{...v,brut:+v.brut,mutuelle:+v.mutuelle,taux_pas:v.taux_pas===''?null:+v.taux_pas,period:window._p});
+  $('#simOut').innerHTML=`<div class="grid kpis">${[['Brut',b.brut],['Cotisations salariales',b.total_salarial],['Net avant impôt',b.net_social],['Prélèvement à la source',b.pas],['Net à payer',b.net_a_payer],['Coût employeur',b.cout_employeur]].map(([l,v])=>`<div class="card kpi"><div class="l">${l}</div><div class="v">${fmt(v)}</div></div>`).join('')}</div><p class="muted small">${esc(b.avertissement)}</p>`}
+async function runPay(){const r=await api('/api/payroll/run',{period:window._p});toast(r.length?`${r.length} bulletin(s) comptabilisé(s)`:'Bulletins déjà établis pour ce mois');pay()}
+async function paySal(){await api('/api/payroll/pay',{period:window._p,date:today()});toast('Virement des salaires comptabilisé')}
+async function dsnSubmit(){const d=await api(`/api/dsn?period=${window._p}`);if(!d.salaries)return toast('Aucun bulletin pour ce mois');declare('dsn',window._p,JSON.stringify(d))}
+
+// ---------- Paramètres ----------
+async function settings(){
+  const [s,mem,log,subs]=await Promise.all([api('/api/settings'),api('/api/members'),api('/api/audit-log'),ENT.kind=='entreprise'?api('/api/edi/submissions'):[]]);
+  const e=s.entity,v=s.settings,isE=ENT.kind=='entreprise',own=ROLE=='proprietaire';
+  const inp=(k,l,val,t='text',x='')=>`<label>${l}<input id="s_${k}" type="${t}" value="${esc(val??'')}" ${x}></label>`;
+  const sel=(k,l,val,opts)=>`<label>${l}<select id="s_${k}">${opts.map(([o,t])=>`<option value="${o}" ${o==val?'selected':''}>${t}</option>`).join('')}</select></label>`;
+  $('#view').innerHTML=`<div class="card"><h2>Dossier</h2><div class="form">${inp('name','Nom',e.name)}${isE?inp('siret','SIRET',e.siret)+inp('address','Adresse',e.address)+inp('email','E-mail de l\'entreprise',e.email,'email')
+   +sel('legal_form','Forme juridique',e.legal_form,['SASU','SAS','SARL','EURL','EI','Micro-entreprise'].map(x=>[x,x]))
+   +sel('tva_regime','Régime de TVA',e.tva_regime,[['reel','Réel (CA3)'],['franchise','Franchise en base']])
+   +sel('tva_exigibilite','Exigibilité de la TVA (services)',e.tva_exigibilite||'debits',[['encaissements','Sur les encaissements'],['debits','Sur les débits (option)']])
+   +inp('effectif','Effectif salarié',v.effectif,'number')+inp('atmp','Taux AT/MP (%)',v.atmp,'number','step="0.01" placeholder="0.80"'):''}</div>
+   <p class="wr"><button class="b" onclick="saveSettings()">Enregistrer</button></p></div>
+  ${isE?`<div class="card"><h2>E-mail (relances et devis)</h2><div class="form">${inp('smtp_host','Serveur SMTP',v.smtp_host,'text','placeholder="smtp.exemple.fr"')}${inp('smtp_port','Port',v.smtp_port,'number','placeholder="587"')}
+   ${sel('smtp_security','Sécurité',v.smtp_security||'starttls',[['starttls','STARTTLS'],['ssl','SSL/TLS'],['none','Aucune']])}${inp('smtp_user','Identifiant',v.smtp_user)}${inp('smtp_password','Mot de passe',v.smtp_password,'password')}${inp('smtp_from','Expéditeur',v.smtp_from,'email')}</div>
+   <p class="wr"><button class="b" onclick="saveSettings()">Enregistrer</button></p></div>
+  <div class="card"><h2>Télédéclaration (partenaire EDI)</h2>
+   <p class="muted small">La DGFiP n'accepte les dépôts automatiques de TVA, de liasse et d'IS que via un <b>partenaire EDI agréé</b> (liste officielle sur impots.gouv.fr). Une fois le contrat signé, renseignez l'URL d'API et le jeton fournis. Le mode « Simulation » permet de tester tout le parcours sans rien envoyer.</p>
+   <div class="form">${sel('edi_mode','Mode',v.edi_mode||'off',[['off','Désactivé (saisie manuelle)'],['sandbox','Simulation (test)'],['http','Partenaire EDI (production)']])}${inp('edi_partenaire','Nom du partenaire',v.edi_partenaire)}
+   ${inp('edi_url','URL de l\'API (https://…)',v.edi_url)}${inp('edi_token','Jeton d\'accès',v.edi_token,'password')}${sel('edi_test','Envoi',v.edi_test??'1',[['1','Environnement de test du partenaire'],['0','Production (dépôt réel)']])}</div>
+   <p class="row wr"><button class="b" onclick="saveSettings()">Enregistrer</button><button class="g" onclick="api('/api/edi/test',{}).then(r=>toast((r.ok?'✓ ':'⚠ ')+r.message))">Tester la connexion</button></p>
+   <h3>Historique des envois</h3><div class="scroll"><table><tr><th>Date</th><th>Type</th><th>Mode</th><th>Référence</th><th>Statut</th><th></th></tr>
+   ${subs.map(x=>`<tr><td>${x.created}</td><td>${x.type}</td><td>${x.mode}</td><td><code>${esc(x.ref||'—')}</code></td><td><span class="tag ${x.status=='accepte'?'ok':x.status=='rejete'||x.status=='erreur'?'bad':'warn'}">${x.status}</span><div class="small muted">${esc(x.response?.message||'')}</div></td>
+   <td>${x.ref&&x.mode=='http'?`<button class="g small" onclick="api('/api/edi/${x.id}/refresh',{}).then(()=>settings())">Actualiser</button>`:''}</td></tr>`).join('')||'<tr><td colspan="6" class="muted">Aucun envoi.</td></tr>'}</table></div></div>`:''}
+  <div class="card"><h2>Membres du dossier</h2><p class="muted small"><b>Propriétaire</b> : tout, y compris les membres. <b>Comptable</b> : saisie, validation, déclarations, clôture. <b>Lecteur</b> : consultation et exports (banquier, associé…).</p>
+   <div class="scroll"><table><tr><th>Nom</th><th>E-mail</th><th>Rôle</th><th></th></tr>${mem.map(m=>`<tr><td>${esc(m.name)}</td><td>${esc(m.email)}</td><td><span class="tag acc">${m.role}</span></td>
+   <td>${own&&m.id!=ME.id?`<button class="g small" onclick="if(confirm('Retirer ce membre ?'))api('/api/members/${m.id}/delete',{}).then(settings)">Retirer</button>`:''}</td></tr>`).join('')}</table></div>
+   ${own?`<h3>Inviter</h3><div class="form"><label>E-mail<input id="mE" type="email"></label><label>Nom<input id="mN"></label><label>Rôle<select id="mR"><option value="comptable">Comptable</option><option value="lecteur">Lecteur</option><option value="proprietaire">Propriétaire</option></select></label><button class="b" onclick="invite()">Inviter</button></div><div id="mOut"></div>`:''}</div>
+  <div class="card"><h2>Journal d'audit</h2><p class="muted small">Toutes les modifications, horodatées et attribuées (piste d'audit fiable).</p><div class="scroll" style="max-height:360px;overflow:auto"><table><tr><th>Date (UTC)</th><th>Utilisateur</th><th>Action</th></tr>
+   ${log.map(l=>`<tr><td>${l.at}</td><td>${esc(l.email||'—')}</td><td>${esc(l.action)}${l.detail?' — '+esc(l.detail):''}</td></tr>`).join('')||'<tr><td colspan="3" class="muted">—</td></tr>'}</table></div></div>`;
+}
+async function saveSettings(){const g=k=>{const el=$('#s_'+k);return el?el.value:undefined};
+  const entity={};['name','siret','address','email','legal_form','tva_regime','tva_exigibilite'].forEach(k=>{if(g(k)!==undefined)entity[k]=g(k)});
+  const st={};['effectif','atmp','smtp_host','smtp_port','smtp_security','smtp_user','smtp_password','smtp_from','edi_mode','edi_partenaire','edi_url','edi_token','edi_test'].forEach(k=>{if(g(k)!==undefined)st[k]=g(k)});
+  await api('/api/settings',{entity,settings:st});toast('Paramètres enregistrés');ENTS=await api('/api/entities');ENT=ENTS.find(e=>e.id==ENT.id);settings()}
+async function invite(){const r=await api('/api/members',{email:$('#mE').value,name:$('#mN').value,role:$('#mR').value});
+  $('#mOut').innerHTML=r.mot_de_passe_provisoire?`<div class="al attention">Compte créé pour ${esc(r.email)}. ${r.email_envoye?'Invitation envoyée par e-mail.':'E-mail non configuré : transmettez-lui ce mot de passe provisoire (affiché une seule fois) : <code>'+esc(r.mot_de_passe_provisoire)+'</code>'}</div>`:'';
+  toast('Membre ajouté');if(!r.mot_de_passe_provisoire||r.email_envoye)settings()}
+
+window.addEventListener('unhandledrejection',e=>e.preventDefault()); // erreurs déjà affichées par toast()
 init();
 </script>
 </body>

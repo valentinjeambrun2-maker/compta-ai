@@ -8,25 +8,8 @@ Le dépôt réel auprès de la DGFiP passe par des canaux agréés :
 Le connecteur EDI est donc une interface à brancher sur un partenaire EDI une fois le
 contrat/agrément obtenu. Sans configuration, `submit` renvoie la marche à suivre.
 """
-import json, os
-from . import ledger
-
-class EDIConnector:
-    def __init__(self):
-        self.endpoint = os.environ.get("EDI_PARTNER_URL")
-        self.token = os.environ.get("EDI_PARTNER_TOKEN")
-
-    def configured(self):
-        return bool(self.endpoint and self.token)
-
-    def submit(self, decl_type, payload):
-        if not self.configured():
-            return None
-        import urllib.request
-        req = urllib.request.Request(self.endpoint, data=json.dumps({"type": decl_type, "payload": payload}).encode(),
-                                     headers={"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=60) as r:
-            return json.load(r)
+import json
+from . import ledger, edi
 
 GUIDES = {
  "ir": ["Connectez-vous sur impots.gouv.fr › Espace particulier › Déclarer mes revenus.",
@@ -38,8 +21,11 @@ GUIDES = {
          "Reportez les lignes CA3 calculées (08, 9B, 09, 16, 19, 23, 25/28, 32).",
          "Validez le télépaiement du montant de la ligne 32 depuis le compte bancaire professionnel.",
          "Revenez ici et enregistrez la liquidation de TVA (écriture 44571/44566 → 44551)."],
- "is": ["Liasse fiscale (2065 + 2033 ou 2050) à déposer en EDI-TDFC via un partenaire ou en EFI.",
-        "Relevé de solde IS (2572) et acomptes trimestriels (2571) sur l'espace professionnel."],
+ "is": ["Relevé de solde IS (2572) et acomptes trimestriels (2571) : espace professionnel impots.gouv.fr ou partenaire EDI."],
+ "liasse": ["Liasse 2065 + 2033 : dépôt obligatoire en EDI-TDFC via un partenaire, ou en mode EFI pour les petites entreprises.",
+            "Échéance : 2e jour ouvré après le 1er mai (exercice clos au 31/12), avec un délai supplémentaire de 15 jours en ligne."],
+ "dsn": ["DSN : dépôt sur net-entreprises.fr (ou via le partenaire) au plus tard le 5 ou le 15 du mois suivant selon l'effectif.",
+         "Contrôlez d'abord le fichier avec DSN-Val, puis consultez les comptes rendus métier (CRM) des organismes."],
 }
 
 def validate_decl(decl_type, data):
@@ -62,14 +48,17 @@ def save_and_submit(con, eid, decl_type, period, data, submit=False):
                       (eid, decl_type, period, json.dumps(data, ensure_ascii=False), status)).lastrowid
     out = {"id": did, "status": status, "erreurs": errs, "guide": GUIDES.get(decl_type, [])}
     if submit and not errs:
-        edi = EDIConnector()
-        if decl_type in ("tva", "is") and edi.configured():
-            out["accuse"] = edi.submit(decl_type, data)
-            con.execute("UPDATE declarations SET status='deposee' WHERE id=?", (did,))
-            out["status"] = "deposee"
+        res = edi.submit(con, eid, decl_type, period, data, did) if decl_type in edi.FORMS else None
+        if res:
+            out["edi"] = res
+            st = {"accepte": "deposee", "recu": "transmise"}.get(res.get("status"), "erreurs")
+            if res.get("status") == "accepte" and edi.config(con, eid)["mode"] == "sandbox":
+                st = "simulee"
+            con.execute("UPDATE declarations SET status=? WHERE id=?", (st, did))
+            out["status"] = st
         else:
             out["depot"] = ("Dépôt automatique indisponible : " +
-                            ("aucun partenaire EDI configuré (EDI_PARTNER_URL / EDI_PARTNER_TOKEN)." if decl_type != "ir"
+                            ("aucun partenaire EDI configuré (onglet Paramètres)." if decl_type != "ir"
                              else "la DGFiP ne propose pas d'API de dépôt pour les particuliers.") +
                             " Suivez le guide pas-à-pas ci-dessous : toutes les valeurs sont prêtes à reporter.")
     return out

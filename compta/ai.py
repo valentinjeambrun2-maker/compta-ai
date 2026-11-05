@@ -12,6 +12,7 @@ def enabled():
     return bool(os.environ.get("ANTHROPIC_API_KEY"))
 
 def llm(system, user, max_tokens=2000):
+    """user : texte, ou liste de blocs de contenu (texte, image, document PDF)."""
     if not enabled():
         return None
     body = json.dumps({"model": MODEL, "max_tokens": max_tokens, "system": system,
@@ -42,7 +43,10 @@ R_ENT_OUT = [
  (r"loyer|bail|regus|coworking|wework", "613", 20, .85), (r"axa|maif|macif|allianz|hiscox|assurance|generali", "616", 0, .9),
  (r"edf|engie|total ?energies|electricit|gaz\b|eau\b|veolia", "606", 20, .85),
  (r"restaurant|brasserie|resto|deliveroo|uber ?eats|dejeuner|cafe\b", "6257", 10, .75),
- (r"sncf|ouigo|air ?france|easyjet|uber|bolt|taxi|g7|peage|vinci autoroute|sanef|parking|total\b|esso|shell|bp\b|carburant|station", "625", 20, .8),
+ (r"sncf|ouigo|air ?france|easyjet|transavia|uber|bolt|taxi|g7|heetch|blablacar|ratp", "625", 0, .85),   # transport de personnes : TVA non déductible
+ (r"hotel|ibis|novotel|accor|airbnb|booking", "625", 0, .75),                                       # hébergement salariés/dirigeants : TVA non déductible
+ (r"total\b|esso|shell|bp\b|carburant|station|avia|intermarche carbu", "625", 20, .7),             # carburant (VP : 80 % récupérable sur gazole/essence)
+ (r"peage|vinci autoroute|sanef|aprr|parking|indigo", "625", 20, .75),
  (r"orange|sfr|bouygues|free ?mobile|free\b|sosh|ovh|o2switch|ionos|la poste|colissimo", "626", 20, .85),
  (r"frais|commission|agios|cotisation carte|abonnement banc|tenue de compte", "627", 0, .85),
  (r"google ?ads|facebook|meta|linkedin ads|tiktok ads|publicit", "623", 20, .85),

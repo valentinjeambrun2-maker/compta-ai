@@ -64,7 +64,11 @@ class Flows(unittest.TestCase):
         self.assertEqual(bank.import_rows(c, e, bank.parse_csv(csv))["imported"], 0)
         tx = c.execute("SELECT id FROM bank_tx").fetchone()[0]
         bank.validate(c, e, tx)
-        self.assertEqual(ledger.solde(c, e, "625"), 10000)
+        self.assertEqual(ledger.solde(c, e, "625"), 12000)   # transport de personnes : TVA non déductible
+        self.assertEqual(ledger.solde(c, e, "44566"), 0)
+        bank.import_rows(c, e, bank.parse_csv("Date;Libellé;Montant\n02/02/2026;PRLV OVH CLOUD;-120,00\n"))
+        bank.validate(c, e, c.execute("SELECT id FROM bank_tx WHERE label LIKE '%OVH%'").fetchone()[0])
+        self.assertEqual(ledger.solde(c, e, "626"), 10000)
         self.assertEqual(ledger.solde(c, e, "44566"), 2000)
 
     def test_bank_lettrage(self):
@@ -89,6 +93,85 @@ class Flows(unittest.TestCase):
         lines = ledger.fec(c, 1, 2026).splitlines()
         self.assertEqual(len(lines[0].split("\t")), 18)
         self.assertTrue(all(len(l.split("\t")) == 18 for l in lines))
+
+class NewFeatures(unittest.TestCase):
+    def test_tva_encaissements(self):
+        c, e = new()
+        c.execute("UPDATE entities SET tva_exigibilite='encaissements' WHERE id=?", (e,))
+        i = business.create_invoice(c, e, "sale", "Cli", "2026-03-05", [{"label": "Conseil", "qty": 1, "unit_price": 1000}])
+        self.assertEqual(tax.ca3(c, e, "2026-03-01", "2026-03-31")["collectee"], 0)
+        business.pay_invoice(c, e, i, "2026-04-10")
+        self.assertEqual(tax.ca3(c, e, "2026-04-01", "2026-04-30")["collectee"], 200.0)
+        self.assertEqual(ledger.solde(c, e, "44574"), 0)
+
+    def test_payroll_balanced_and_once(self):
+        from compta import payroll
+        c, e = new()
+        c.execute("INSERT INTO employees(entity_id,nom,prenom,brut,date_entree) VALUES(?,?,?,?,?)", (e, "D", "A", 300000, "2025-01-01"))
+        self.assertEqual(len(payroll.run_payroll(c, e, "2026-03")), 1)
+        self.assertEqual(payroll.run_payroll(c, e, "2026-03"), [])
+        tb = ledger.trial_balance(c, e)
+        self.assertEqual(tb["total_debit"], tb["total_credit"])
+        b = payroll.compute({"brut": 3000}, "2026-03")
+        self.assertAlmostEqual(b["net_social"] + b["total_salarial"], 3000, places=2)
+        self.assertGreater(payroll._reduction_generale(payroll.params(2026), 1823.03, 151.67, 1), 0)
+        payroll.pay_salaries(c, e, "2026-03", "2026-03-31")
+        self.assertEqual(ledger.solde(c, e, "421"), 0)
+
+    def test_liasse_balanced(self):
+        from compta import liasse
+        c = db.connect(":memory:"); demo.load(c); bank.validate_confident(c, 1, 0)
+        L = liasse.compute(c, 1, 2026, {"Amendes": 100})
+        self.assertTrue(L["equilibre"])
+        self.assertEqual(L["resultat_fiscal"]["370 Résultat fiscal — bénéfice"], L["resultat_fiscal"]["resultat_comptable"] + 100)
+
+    def test_foncier_deficit(self):
+        from compta import foncier
+        r = foncier.compute([{"loyers": 9600, "travaux": 15000, "interets": 2000, "taxe_fonciere": 900}])
+        self.assertEqual(r["deficit_revenu_global"], 8320)   # 9600-2000=7600 ; charges 15920 → déficit 8320
+        r = foncier.compute([{"loyers": 1000, "interets": 3000, "travaux": 20000}])
+        self.assertEqual(r["deficit_revenu_global"], 10700)  # plafond
+        self.assertEqual(r["deficit_reportable"], 2000 + (20020 - 10700))
+
+    def test_quote_reminder_expense(self):
+        from compta import sales, expenses
+        c = db.connect(":memory:"); demo.load(c)
+        q = c.execute("SELECT id FROM quotes").fetchone()[0]
+        inv = sales.quote_to_invoice(c, 1, q, "2026-03-01")
+        with self.assertRaises(ledger.LedgerError):
+            sales.quote_to_invoice(c, 1, q)
+        r = sales.send_reminder(c, 1, inv, today="2026-05-15")
+        self.assertEqual((r["sent"], r["level"]), (False, 1))
+        self.assertIn("40 €", sales.LEVELS[3][2])
+        self.assertEqual(expenses.km_allowance(100, 5), 63.6)
+        x = expenses.create(c, 1, "2026-03-03", "V", "Train", "transport", ttc=50)
+        expenses.validate(c, 1, x)
+        self.assertEqual(ledger.solde(c, 1, "44566", "2026-03-03", "2026-03-03"), 0)
+
+    def test_exports(self):
+        from compta import exports
+        c = db.connect(":memory:"); demo.load(c)
+        for k in ("resultat", "bilan", "balance", "journal", "factures", "liasse", "paie"):
+            self.assertTrue(exports.report_pdf(c, 1, k, 2026).startswith(b"%PDF"))
+            self.assertTrue(exports.report_xlsx(c, 1, k, 2026).startswith(b"PK"))
+
+    def test_pdf_builtin_extractor(self):
+        from compta import documents
+        data = open(os.path.join(os.path.dirname(__file__), "facture_test.pdf"), "rb").read()
+        self.assertIn("Total TTC : 300,00", documents.pdf_text_builtin(data))
+
+    def test_auth_passwords(self):
+        from compta import auth
+        auth.ITER = 1000
+        c = db.connect(":memory:")
+        auth.setup(c, "a@b.fr", "A", "motdepasse1")
+        with self.assertRaises(auth.AuthError):
+            auth.login(c, "a@b.fr", "faux")
+        tok, u = auth.login(c, "a@b.fr", "motdepasse1")
+        self.assertEqual(auth.user_from_token(c, tok)["email"], "a@b.fr")
+        self.assertNotIn(tok, str(c.execute("SELECT token FROM sessions").fetchall()))  # seule l'empreinte est stockée
+        with self.assertRaises(ledger.LedgerError):
+            auth.create_user(c, "x@y.fr", "x", "court")
 
 class Taxes(unittest.TestCase):
     def test_ir_single(self):

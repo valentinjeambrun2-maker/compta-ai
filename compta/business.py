@@ -9,13 +9,16 @@ def next_number(con, eid, year):
     n = con.execute("SELECT COUNT(*) FROM invoices WHERE entity_id=? AND kind='sale' AND substr(date,1,4)=?", (eid, year)).fetchone()[0]
     return f"FA-{year}-{n + 1:04d}"
 
-def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, account=None):
+def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, account=None, nature="services", email=None, quote_id=None):
+    """TVA sur les encaissements : pour les prestations de services d'une entité qui n'a pas opté pour les débits,
+    la TVA est d'abord inscrite en attente (44574 / 44586) puis devient exigible / déductible au règlement."""
     if kind not in ("sale", "purchase"):
         raise ledger.LedgerError("Type de facture invalide")
     if not lines:
         raise ledger.LedgerError("La facture doit avoir au moins une ligne")
     ent = ledger.entity(con, eid)
     franchise = ent["tva_regime"] == "franchise" and kind == "sale"
+    encaiss = (ent.get("tva_exigibilite") == "encaissements" and nature == "services")
     by_rate, out = {}, []
     for l in lines:
         rate = 0.0 if franchise else float(l.get("tva_rate", 20))
@@ -32,19 +35,19 @@ def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, ac
         number = next_number(con, eid, date[:4])  # numérotation chronologique continue obligatoire
         account = account or "706"
         el = [{"account": "411", "debit": ttc, "label": f"{number} {party}"}, {"account": account, "credit": ht}]
-        el += [{"account": "44571", "credit": t, "rate": r, "base": by_rate[r]} for r, t in tvas.items() if t]
+        el += [{"account": "44574" if encaiss else "44571", "credit": t, "rate": r, "base": by_rate[r]} for r, t in tvas.items() if t]
         jr = "VE"
     else:
         number = number or f"ACH-{date}"
         account = account or "606"
         el = [{"account": account, "debit": ht}]
-        el += [{"account": "44566", "debit": t, "rate": r, "base": by_rate[r]} for r, t in tvas.items() if t]
+        el += [{"account": "44586" if encaiss else "44566", "debit": t, "rate": r, "base": by_rate[r]} for r, t in tvas.items() if t]
         el.append({"account": "401", "credit": ttc, "label": f"{number} {party}"})
         jr = "AC"
     en = ledger.post_entry(con, eid, date, jr, f"Facture {number} — {party}", el, ref=number, source="invoice")
     due = due or (dt.date.fromisoformat(date) + dt.timedelta(days=30)).isoformat()
-    cur = con.execute("INSERT INTO invoices(entity_id,kind,number,date,due,party,ht,tva,ttc,lines,account,entry_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                      (eid, kind, number, date, due, party, ht, tva, ttc, json.dumps(out), account, en))
+    cur = con.execute("INSERT INTO invoices(entity_id,kind,number,date,due,party,ht,tva,ttc,lines,account,entry_id,nature,email,quote_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                      (eid, kind, number, date, due, party, ht, tva, ttc, json.dumps(out), account, en, nature, email, quote_id))
     return cur.lastrowid
 
 def pay_invoice(con, eid, inv_id, date=None):
@@ -60,7 +63,23 @@ def pay_invoice(con, eid, inv_id, date=None):
         lines = [{"account": "401", "debit": inv["ttc"]}, {"account": "512", "credit": inv["ttc"]}]
     en = ledger.post_entry(con, eid, date, "BQ", f"Règlement {inv['number']} — {inv['party']}", lines, ref=inv["number"], source="invoice")
     con.execute("UPDATE invoices SET status='paid', pay_entry_id=? WHERE id=?", (en, inv_id))
+    on_invoice_paid(con, eid, inv_id, date)
     return en
+
+def on_invoice_paid(con, eid, inv_id, date):
+    """Bascule la TVA en attente (régime des encaissements) vers la TVA exigible / déductible à la date du règlement."""
+    inv = con.execute("SELECT * FROM invoices WHERE id=? AND entity_id=?", (inv_id, eid)).fetchone()
+    pend = con.execute("SELECT account, debit, credit, rate, base FROM lines WHERE entry_id=? AND account IN ('44574','44586')",
+                       (inv["entry_id"],)).fetchall()
+    if not pend:
+        return None
+    lines = []
+    for l in pend:
+        if l["account"] == "44574":
+            lines += [{"account": "44574", "debit": l["credit"]}, {"account": "44571", "credit": l["credit"], "rate": l["rate"], "base": l["base"]}]
+        else:
+            lines += [{"account": "44566", "debit": l["debit"], "rate": l["rate"], "base": l["base"]}, {"account": "44586", "credit": l["debit"]}]
+    return ledger.post_entry(con, eid, date, "OD", f"TVA exigible à l'encaissement — {inv['number']}", lines, ref=inv["number"], source="tva")
 
 def invoice_html(con, eid, inv_id):
     inv = dict(con.execute("SELECT * FROM invoices WHERE id=? AND entity_id=?", (inv_id, eid)).fetchone())

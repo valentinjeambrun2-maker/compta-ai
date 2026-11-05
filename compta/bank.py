@@ -105,6 +105,8 @@ def validate(con, eid, tx_id, account=None, tva_rate=None):
     con.execute("UPDATE bank_tx SET status='validated', account=?, tva_rate=?, entry_id=? WHERE id=?", (account, rate, en, tx_id))
     if tx["invoice_id"] and account in ("411", "401"):
         con.execute("UPDATE invoices SET status='paid', pay_entry_id=? WHERE id=?", (en, tx["invoice_id"]))
+        from . import business
+        business.on_invoice_paid(con, eid, tx["invoice_id"], tx["date"])
     return en
 
 def validate_confident(con, eid, min_conf=0.8):

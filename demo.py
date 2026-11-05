@@ -1,5 +1,5 @@
 """Jeu de données de démonstration : une SASU de conseil et un foyer."""
-from compta import pcg, bank, business
+from compta import pcg, bank, business, auth, sales, expenses, payroll, db
 
 ENT_CSV = """Date;Libellé;Débit;Crédit
 05/01/2026;VIR SEPA CLIENT ACME FACTURE FA-2026-0001;;6000,00
@@ -40,4 +40,22 @@ def load(con):
     pcg.seed(con, e2, "particulier")
     bank.import_rows(con, e2, bank.parse_csv(PAR_CSV))
     bank.validate_confident(con, e2, .8)
+    # Utilisateurs et rôles
+    owner = auth.create_user(con, "demo@comptaia.fr", "Valentin (dirigeant)", "demo-compta", is_admin=False)
+    cpt = auth.create_user(con, "comptable@cabinet.fr", "Cabinet Durand (comptable)", "demo-compta")
+    for eid in (e1, e2):
+        con.execute("INSERT INTO memberships(user_id,entity_id,role) VALUES(?,?,'proprietaire')", (owner, eid))
+    con.execute("INSERT INTO memberships(user_id,entity_id,role) VALUES(?,?,'comptable')", (cpt, e1))
+    # Paie, devis, notes de frais
+    db.set_setting(con, e1, "effectif", 1)
+    db.set_setting(con, e1, "edi_mode", "sandbox")
+    con.execute("INSERT INTO employees(entity_id,nom,prenom,nir,naissance,emploi,statut,contrat,date_entree,brut,mutuelle) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+                (e1, "Durand", "Alice", "2850375123456", "1985-03-12", "Consultante junior", "non-cadre", "CDI", "2025-09-01", 280000, 6000))
+    payroll.run_payroll(con, e1, "2026-01")
+    q = sales.create_quote(con, e1, "Gamma SAS", "2026-02-15", [{"label": "Refonte du site web", "qty": 1, "unit_price": 3000},
+                                                                 {"label": "Maintenance mensuelle", "qty": 12, "unit_price": 49}], email="compta@gamma.fr")
+    sales.set_quote_status(con, e1, q, "envoye")
+    con.execute("UPDATE invoices SET email='factures@beta-sas.fr' WHERE entity_id=? AND party='Beta SAS'", (e1,))
+    expenses.create(con, e1, "2026-01-22", "Valentin", "Déjeuner client — Brasserie Georges", "restaurant", ttc=68.40)
+    expenses.create(con, e1, "2026-01-29", "Valentin", "", "", km=186, cv=5)
     con.commit()

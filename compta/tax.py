@@ -65,7 +65,11 @@ def impot_revenu(d, year=2025):
     else:
         notes_foncier = None
     foncier = loyers * (1 - p["micro_foncier"]["abattement"])
-    rbg = (sal - abatt_sal) + (pen - abatt_pen) + micro + foncier
+    reel = f("foncier_reel")           # revenu foncier net imposable au réel (2044), après déficits antérieurs
+    if loyers and (reel or f("deficit_foncier_rg")):
+        notes_foncier = "Micro-foncier et régime réel ne peuvent pas être cumulés : choisissez l'un des deux."
+    foncier += reel
+    rbg = max(0.0, (sal - abatt_sal) + (pen - abatt_pen) + micro + foncier - f("deficit_foncier_rg"))
     deductions = f("pension_alimentaire") + f("per_versements") + f("autres_deductions")
     rni = max(0.0, rbg - deductions)
     base_parts, nb_parts = parts(d.get("situation", "celibataire"), d.get("enfants"))
@@ -104,7 +108,8 @@ def impot_revenu(d, year=2025):
         "6DD Pension alimentaire versée": f("pension_alimentaire"), "6NS Versements PER": f("per_versements"),
         "7UF Dons intérêt général": f("dons"), "7UD Dons aide aux personnes": f("dons_aide"),
         "7DB Emploi à domicile": f("emploi_domicile"), "7GA Garde d'enfants hors domicile": f("garde_enfants")}.items() if v}
-    revenus_tot = sal + pen + f("micro_bic_vente") + f("micro_bic_service") + f("micro_bnc") + loyers + capitaux
+    cases.update({k: round(v) for k, v in (d.get("cases_foncier") or {}).items() if v})
+    revenus_tot = sal + pen + f("micro_bic_vente") + f("micro_bic_service") + f("micro_bnc") + loyers + reel + capitaux
     notes = [n for n in [notes_foncier,
         "Option pour le barème progressif sur les revenus de capitaux non simulée (PFU 12,8 % + PS 17,2 % appliqués)." if capitaux else None,
         "Plafond PER non contrôlé : vérifiez le montant déductible sur votre avis d'imposition." if f("per_versements") else None,
