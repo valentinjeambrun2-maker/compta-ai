@@ -273,7 +273,9 @@ async function bank(){
    <td style="white-space:nowrap"><span class="conf"><i style="width:${(t.confidence||0)*100}%;background:${t.confidence>=.8?'var(--ok)':t.confidence>=.5?'var(--warn)':'var(--bad)'}"></i></span> ${Math.round((t.confidence||0)*100)} %</td>
    <td>${st=='pending'?`<button class="g" onclick="val(${t.id})">Valider</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucune opération.</td></tr>'}</table></div></div>`;
 }
-async function importCsv(){const f=$('#csvf').files[0];if(!f)return toast('Choisissez un fichier');const r=await api('/api/bank/import',{csv:await f.text()});toast(`${r.imported} opération(s) importée(s), ${r.duplicates} doublon(s) ignoré(s)`);bank()}
+// Relevés bancaires français : souvent en Windows-1252 (accents), parfois en UTF-8.
+async function readCsvText(f){const b=await f.arrayBuffer();try{return new TextDecoder('utf-8',{fatal:true}).decode(b)}catch(e){return new TextDecoder('windows-1252').decode(b)}}
+async function importCsv(){const f=$('#csvf').files[0];if(!f)return toast('Choisissez un fichier');const r=await api('/api/bank/import',{csv:await readCsvText(f)});toast(`${r.imported} importée(s) · ${r.rules_applied} classée(s) par vos règles · ${r.possible_duplicates} doublon(s) probable(s) à vérifier · ${r.duplicates} ignorée(s)`);bank()}
 async function val(id){const r=$('#r'+id);await api(`/api/bank/${id}/validate`,{account:$('#a'+id).value,tva_rate:r?+r.value:0});toast('Écriture passée');bank()}
 async function valAll(){const r=await api('/api/bank/validate-confident',{min_conf:.8});toast(`${r.validated} opération(s) comptabilisée(s)`);bank()}
 

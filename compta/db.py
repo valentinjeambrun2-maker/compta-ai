@@ -24,6 +24,9 @@ CREATE TABLE IF NOT EXISTS bank_tx(
   id INTEGER PRIMARY KEY, entity_id INTEGER NOT NULL, date TEXT NOT NULL, label TEXT NOT NULL,
   amount INTEGER NOT NULL, account TEXT, tva_rate REAL DEFAULT 0, status TEXT DEFAULT 'pending',
   confidence REAL, reason TEXT, entry_id INTEGER, invoice_id INTEGER);
+CREATE TABLE IF NOT EXISTS bank_rules(
+  entity_id INTEGER NOT NULL, rule_key TEXT NOT NULL, account TEXT NOT NULL, tva_rate REAL DEFAULT 0,
+  hits INTEGER DEFAULT 1, updated TEXT, PRIMARY KEY(entity_id, rule_key));
 CREATE TABLE IF NOT EXISTS invoices(
   id INTEGER PRIMARY KEY, entity_id INTEGER NOT NULL, kind TEXT NOT NULL CHECK(kind IN('sale','purchase')),
   number TEXT NOT NULL, date TEXT NOT NULL, due TEXT, party TEXT NOT NULL, ht INTEGER, tva INTEGER, ttc INTEGER,
