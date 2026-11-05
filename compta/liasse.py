@@ -21,7 +21,8 @@ def _sum(bal, prefixes, sign=1, only=None):
 
 def compute(con, eid, year, reintegrations=None, deductions=None, pme=True):
     s, e = f"{year}-01-01", f"{year}-12-31"
-    bal, res = _bal(con, eid, e), _bal(con, eid, e, s)
+    bal = _bal(con, eid, e)
+    res = {b["account"]: b["solde"] for b in ledger.balances(con, eid, s, e, exclude_closing=True)}
     E = ledger.euros
     # ---- 2033-A Bilan simplifié
     immo_corp = _sum(bal, ["21"], only="D"); amort = -_sum(bal, ["28"])
@@ -31,24 +32,30 @@ def compute(con, eid, year, reintegrations=None, deductions=None, pme=True):
         ("030", "Amortissements des immobilisations corporelles", -amort),
         ("040", "Immobilisations financières", _sum(bal, ["27"], only="D")),
         ("050", "Stocks", _sum(bal, ["3"], only="D")),
-        ("068", "Créances clients", _sum(bal, ["411"], only="D")),
-        ("072", "Autres créances (dont TVA déductible)", _sum(bal, ["44", "455", "467", "471", "425"], only="D")),
-        ("084", "Disponibilités", _sum(bal, ["512", "53"], only="D")),
+        ("068", "Créances clients et comptes rattachés", _sum(bal, ["411", "413", "416", "418"], only="D") + _sum(bal, ["491"])),
+        ("072", "Autres créances (dont TVA déductible)", _sum(bal, ["409", "42", "43", "44", "45", "46", "47"], only="D")),
+        ("080", "Valeurs mobilières de placement", _sum(bal, ["50"], only="D") + _sum(bal, ["59"])),
+        ("084", "Disponibilités", _sum(bal, ["51", "53", "58"], only="D")),
         ("092", "Charges constatées d'avance", _sum(bal, ["486"], only="D")),
     ]
     resultat = -sum(v for k, v in res.items() if k[0] in "67")
     passif = [
-        ("120", "Capital social ou individuel", -_sum(bal, ["101", "108"])),
+        ("120", "Capital social ou individuel", -_sum(bal, ["101", "104", "108"])),
+        ("124", "Écarts de réévaluation", -_sum(bal, ["105"])),
         ("132", "Réserves", -_sum(bal, ["106"])),
         ("134", "Report à nouveau", -_sum(bal, ["11"])),
+        ("140", "Provisions réglementées et subventions", -_sum(bal, ["13", "14"])),
         ("136", "Résultat de l'exercice", resultat),
-        ("156", "Emprunts et dettes assimilées (dont découverts)", -_sum(bal, ["16"]) - _sum(bal, ["512", "519"], only="C")),
-        ("166", "Fournisseurs et comptes rattachés", -_sum(bal, ["401", "404"], only="C")),
+        ("154", "Provisions pour risques et charges", -_sum(bal, ["15"])),
+        ("156", "Emprunts et dettes assimilées (dont découverts)", -_sum(bal, ["16"]) - _sum(bal, ["51", "519"], only="C")),
+        ("166", "Fournisseurs et comptes rattachés", -_sum(bal, ["401", "403", "404", "408"], only="C")),
         ("169", "Dettes fiscales et sociales", -_sum(bal, ["42", "43", "44"], only="C")),
-        ("172", "Autres dettes", -_sum(bal, ["455", "467", "471", "411"], only="C")),
+        ("172", "Autres dettes (associés, dividendes, clients créditeurs…)", -_sum(bal, ["409", "41", "45", "46", "47"], only="C")),
+        ("174", "Produits constatés d'avance", -_sum(bal, ["487"])),
     ]
-    # Résultats antérieurs non affectés (exercices précédents non clôturés en comptabilité) : rattachés au report à nouveau
-    anterieur = -sum(v for k, v in _bal(con, eid, f"{year - 1}-12-31").items() if k[0] in "67")
+    # Résultats antérieurs non encore affectés (comptes 12 et exercices non clôturés) : rattachés au report à nouveau
+    tous_resultats = -sum(v for k, v in bal.items() if k[0] in "67") - _sum(bal, ["12"])
+    anterieur = tous_resultats - resultat
     if anterieur:
         passif[2] = ("134", "Report à nouveau (dont résultats antérieurs)", passif[2][2] + anterieur)
     ta, tp = sum(v for _, _, v in actif), sum(v for _, _, v in passif)
@@ -88,7 +95,7 @@ def compute(con, eid, year, reintegrations=None, deductions=None, pme=True):
     ent = ledger.entity(con, eid)
     f2065 = {"Dénomination": ent["name"], "SIREN": (ent.get("siret") or "")[:11].replace(" ", ""), "Exercice": f"{s} → {e}",
              "Régime": "Réel simplifié (RSI)", "Résultat fiscal": E(r_fiscal), "IS au taux réduit (15 %)": round(min(max(r_fiscal / 100, 0), 42500) * .15) if pme else 0,
-             "IS total": is_["is"], "Acompte trimestriel": is_["acomptes_trimestriels"]}
+             "IS total": is_["is"], "Acompte trimestriel": is_.get("acomptes_trimestriels", 0)}
     fmt = lambda rows: [{"ligne": c, "libelle": l, "montant": E(v)} for c, l, v in rows]
     return {"annee": year, "2033A_actif": fmt(actif), "2033A_passif": fmt(passif), "equilibre": ta == tp,
             "2033B": fmt(compte), "resultat_fiscal": fiscal, "2033C": immos, "2065": f2065,

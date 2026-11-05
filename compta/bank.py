@@ -64,7 +64,7 @@ def import_rows(con, eid, rows):
         inv = match_invoice(con, eid, r, matched)
         if inv:
             matched.add(inv["id"])
-            c = {"account": "411" if inv["kind"] == "sale" else "401", "tva_rate": 0, "confidence": .97,
+            c = {"account": inv["tiers_account"] or ("411" if inv["kind"] == "sale" else "401"), "tva_rate": 0, "confidence": .97,
                  "reason": f"Lettrage : règlement de la facture {inv['number']} ({inv['party']})"}
         con.execute("INSERT INTO bank_tx(entity_id,date,label,amount,account,tva_rate,confidence,reason,invoice_id) VALUES(?,?,?,?,?,?,?,?,?)",
                     (eid, r["date"], r["label"], r["amount"], c["account"], c["tva_rate"], c["confidence"], c["reason"], inv["id"] if inv else None))
@@ -90,7 +90,7 @@ def validate(con, eid, tx_id, account=None, tva_rate=None):
     account = account or tx["account"] or "471"
     rate = float(tva_rate if tva_rate is not None else (tx["tva_rate"] or 0))
     ent = ledger.entity(con, eid)
-    if ent["kind"] == "particulier" or ent["tva_regime"] == "franchise" or account[0] not in "67":
+    if ent["kind"] == "particulier" or ent["tva_regime"] == "franchise" or account[0] not in "267":
         rate = 0.0
     amt = abs(tx["amount"]); ht = round(amt / (1 + rate / 100)); tva = amt - ht
     if tx["amount"] < 0:   # dépense
@@ -103,9 +103,11 @@ def validate(con, eid, tx_id, account=None, tva_rate=None):
             lines.append({"account": "44571", "credit": tva, "rate": rate, "base": ht})
     en = ledger.post_entry(con, eid, tx["date"], "BQ", tx["label"], lines, ref=f"BQ{tx_id}", source="bank")
     con.execute("UPDATE bank_tx SET status='validated', account=?, tva_rate=?, entry_id=? WHERE id=?", (account, rate, en, tx_id))
-    if tx["invoice_id"] and account in ("411", "401"):
+    con.execute("UPDATE lines SET pointe=1 WHERE entry_id=? AND account='512'", (en,))   # issue du relevé : pointée
+    if tx["invoice_id"] and account[:3] in ("411", "401"):
         con.execute("UPDATE invoices SET status='paid', pay_entry_id=? WHERE id=?", (en, tx["invoice_id"]))
         from . import business
+        business.letter_invoice(con, eid, tx["invoice_id"], en)
         business.on_invoice_paid(con, eid, tx["invoice_id"], tx["date"])
     return en
 

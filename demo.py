@@ -1,5 +1,5 @@
 """Jeu de données de démonstration : une SASU de conseil et un foyer."""
-from compta import pcg, bank, business, auth, sales, expenses, payroll, db
+from compta import pcg, bank, business, auth, sales, expenses, payroll, db, profile
 
 ENT_CSV = """Date;Libellé;Débit;Crédit
 05/01/2026;VIR SEPA CLIENT ACME FACTURE FA-2026-0001;;6000,00
@@ -58,4 +58,15 @@ def load(con):
     con.execute("UPDATE invoices SET email='factures@beta-sas.fr' WHERE entity_id=? AND party='Beta SAS'", (e1,))
     expenses.create(con, e1, "2026-01-22", "Valentin", "Déjeuner client — Brasserie Georges", "restaurant", ttc=68.40)
     expenses.create(con, e1, "2026-01-29", "Valentin", "", "", km=186, cv=5)
+    profile.save(con, e1, {"activite_desc": "Cabinet de conseil en stratégie digitale", "forme": "SASU", "date_creation": "2024-09-01", "cloture": "12-31",
+                           "regime_fiscal": "is", "ca_estime": 90000, "tva_regime": "reel_mensuel", "tva_exigibilite": "encaissements",
+                           "international": ["ue_fournisseurs"], "dirigeant_remuneration": "mixte", "effectif": 1, "locaux": "location", "vehicule": "perso"}, True)
+    db.set_setting(con, e1, "tva_periodicite", "reel_mensuel")
+    profile.save(con, e2, {"prenom": "Julie", "naissance": 1988, "situation": "marie", "situation_changement": False, "conjoint_prenom": "Marc",
+                           "conjoint_naissance": 1986, "enfants": 2, "enfants_naissances": "2014, 2021", "garde_alternee": False, "enfants_majeurs": 0,
+                           "invalidite": False, "departement": "69", "logement": "proprietaire", "activite": "salarie", "conjoint_activite": "independant",
+                           "salaire_annuel": 42000, "trajet_km": 32, "trajet_cv": "5", "teletravail_jours": 1, "micro_type": "micro_bnc", "micro_ca": 28000,
+                           "versement_liberatoire": False, "immobilier_locatif": True, "location_type": "nue", "loyers_annuels": 9600, "credit_immo_locatif": True,
+                           "interets_annuels": 2600, "charges_foncieres": 3100, "placements": ["livrets", "cto"], "dividendes": 1800, "per_versements": 0,
+                           "dons_annuels": 400, "dons_aide": 150, "emploi_domicile": 2400, "garde_montant": 3200, "pension_versee": 0, "ehpad": 0, "taux_pas": 7.4}, True)
     con.commit()

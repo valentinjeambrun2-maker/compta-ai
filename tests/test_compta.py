@@ -1,7 +1,7 @@
 import os, sys, unittest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 os.environ.pop("ANTHROPIC_API_KEY", None)
-from compta import db, pcg, ledger, bank, tax, business, filing
+from compta import db, pcg, ledger, bank, tax, business, filing, tiers, vat
 import demo
 
 def new(kind="entreprise", **kw):
@@ -75,8 +75,10 @@ class Flows(unittest.TestCase):
         c = db.connect(":memory:")
         demo.load(c)
         tx = c.execute("SELECT * FROM bank_tx WHERE label LIKE '%ACME%'").fetchone()
-        self.assertEqual(tx["account"], "411")
+        self.assertEqual(tx["account"], "411ACMESA")       # compte auxiliaire du client
         bank.validate(c, 1, tx["id"])
+        lt = [l["lettrage"] for l in tiers.open_lines(c, 1, "411ACMESA")]
+        self.assertEqual(lt, ["AA", "AA"])                  # facture et règlement lettrés
         self.assertEqual(c.execute("SELECT status FROM invoices WHERE number='FA-2026-0001'").fetchone()[0], "paid")
         self.assertEqual(ledger.income_statement(c, 1)["total_produits"], 650000)  # pas de double comptage : 5000 + 1500 HT (+ Stripe non validé)
 
@@ -209,3 +211,90 @@ class Taxes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class Expert(unittest.TestCase):
+    """Comptabilité détaillée, profil IA, Agent Impôts, obligations et agents."""
+    def setUp(self):
+        self.c = db.connect(":memory:"); demo.load(self.c)
+
+    def test_tiers_lettrage_fec(self):
+        c = self.c
+        acc = c.execute("SELECT account FROM tiers WHERE nom='ACME SA'").fetchone()[0]
+        self.assertTrue(acc.startswith("411"))
+        bank.validate_confident(c, 1, 0)
+        self.assertTrue(all(l["lettrage"] for l in tiers.open_lines(c, 1, acc)))
+        fec = ledger.fec(c, 1, 2026)
+        self.assertIn("\t411\tClients\t" + acc, fec)
+
+    def test_international_vat(self):
+        c = self.c
+        with self.assertRaises(ledger.LedgerError):
+            business.create_invoice(c, 1, "sale", "Sans numéro", "2026-05-02", [{"label": "x", "qty": 1, "unit_price": 100}], operation="ue_services")
+        business.create_invoice(c, 1, "purchase", "AWS EMEA", "2026-05-03", [{"label": "Cloud", "qty": 1, "unit_price": 100}], operation="ue_services")
+        d = tax.ca3(c, 1, "2026-05-01", "2026-05-31")
+        self.assertEqual(d["collectee"], 20.0); self.assertEqual(d["deductible"], 20.0); self.assertEqual(d["a_payer"], 0)
+
+    def test_closing_cycle_balanced(self):
+        from compta import closing, liasse
+        c = self.c
+        bank.validate_confident(c, 1, 0)
+        closing.regularisation(c, 1, "cca", "616", 40, 2026, "Assurance")
+        closing.regularisation(c, 1, "fnp", "622", 300, 2026, "Honoraires", tva_rate=20)
+        business.close_year(c, 1, 2026)
+        closing.allocate_result(c, 1, 2026, "2027-06-30", dividendes=200)
+        for y in (2026, 2027):
+            self.assertTrue(ledger.balance_sheet(c, 1, f"{y}-12-31")["equilibre"])
+            self.assertTrue(liasse.compute(c, 1, y)["equilibre"])
+        self.assertEqual(ledger.solde(c, 1, "6", "2026-01-01", "2026-12-31"), 0)  # comptes de gestion soldés
+
+    def test_reconciliation_and_reverse(self):
+        from compta import closing
+        c = self.c
+        bank.validate_confident(c, 1, 0)
+        r = closing.reconciliation(c, 1, "2026-12-31", 3250.63 + 2400)
+        self.assertTrue(r["equilibre"])  # seul l'achat du MacBook (hors relevé) reste non pointé
+        en = ledger.search(c, 1, q="URSSAF")[0]["id"]
+        closing.reverse_entry(c, 1, en, "2026-06-30")
+        with self.assertRaises(ledger.LedgerError):
+            closing.reverse_entry(c, 1, en, "2026-06-30")
+
+    def test_analysis(self):
+        from compta import analysis
+        bank.validate_confident(self.c, 1, 0)
+        s = analysis.sig(self.c, 1, 2026)
+        net = next(l["montant"] for l in s["lignes"] if l["libelle"] == "= Résultat net")
+        self.assertEqual(net, ledger.euros(ledger.income_statement(self.c, 1, "2026-01-01", "2026-12-31")["resultat"]))
+        self.assertEqual(len(analysis.cash_forecast(self.c, 1, 6)["mois"]), 6)
+
+    def test_profile_interview(self):
+        from compta import profile
+        c = self.c
+        e = c.execute("INSERT INTO entities(name,kind) VALUES('F','particulier')").lastrowid
+        r = profile.answer(c, e, "particulier", "prenom", free_text="Je m'appelle Léa, pacsée, deux enfants nés en 2017 et 2020, salariée, locataire à Paris")
+        p, _ = profile.get(c, e)
+        self.assertEqual((p["prenom"], p["situation"], p["enfants"], p["activite"], p["departement"]), ("Léa", "pacse", 2, "salarie", "75"))
+        self.assertEqual(r["question"]["id"], "naissance")
+
+    def test_tax_agent(self):
+        from compta import tax_agent, exports
+        c = self.c
+        pdf = exports.PDF("x"); pdf.para("BULLETIN DE SALAIRE décembre 2026"); pdf.para("Net imposable cumulé : 43 812,55")
+        tax_agent.add_document(c, 2, 2026, "bulletin.pdf", "application/pdf", pdf.output())
+        d = tax_agent.build(c, 2, 2026)
+        self.assertEqual(d["parts"], 3.0)
+        self.assertEqual(d["donnees"]["salaires"]["valeur"], 43812.55)
+        self.assertTrue(any(o["titre"].startswith("Frais réels") and o["gain"] > 0 for o in d["optimisations"]))
+        self.assertIn("2042-C-PRO", d["calcul"]["formulaires"])
+        self.assertEqual(d["donnees"]["garde_enfants"]["valeur"], 3200)   # comptabilité partielle ≠ estimation annuelle
+        out = tax_agent.submit(c, 2, 2026, d)
+        self.assertTrue(out["copilote"]["cases"])
+
+    def test_obligations_and_agents(self):
+        from compta import obligations, agents
+        c = self.c
+        done = obligations.run(c, 1, 2026)
+        self.assertTrue(done and all(x["statut"] == "simulee" for x in done))
+        for name in agents.AGENTS:
+            r = agents.run(c, 1 if name != "impots" else 2, name, 2026)
+            self.assertFalse(any(i["titre"] == "Analyse indisponible" for i in r["analyses"]), name)
+        self.assertIn("autoliquidation", agents.ask(c, 1, "tva", 2026, "client belge ?")["answer"].lower())

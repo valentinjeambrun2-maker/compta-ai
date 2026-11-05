@@ -357,6 +357,29 @@ def report_data(con, eid, kind, year):
             b = json.loads(r["data"])
             rows.append([r["period"], f"{b['salarie']['prenom']} {b['salarie']['nom']}", b["brut"], b["net_a_payer"], b["pas"], b["cout_employeur"]])
         return f"Livre de paie {year}", [("", cols, rows, set())]
+    if kind == "sig":
+        from . import analysis
+        g = analysis.sig(con, eid, int(year))
+        rows = [[l["libelle"], l["montant"], f"{l['pct_ca']} %".replace(".", ",") if l["pct_ca"] is not None else ""] for l in g["lignes"]]
+        bold = {i for i, l in enumerate(g["lignes"]) if l["total"]}
+        r = analysis.ratios(con, eid, int(year))
+        rr = [[x["ratio"], x["valeur"] if x["unite"] == "€" else f"{x['valeur']} {x['unite']}" if x["valeur"] is not None else "—", x["aide"]] for x in r["ratios"]]
+        return f"Analyse financière {year}", [("Soldes intermédiaires de gestion", [("Solde", 60, "l"), ("Montant", 22, "r"), ("% CA", 18, "r")], rows, bold),
+                                             ("Ratios", [("Ratio", 45, "l"), ("Valeur", 18, "r"), ("Commentaire", 37, "l")], rr, set())]
+    if kind == "agee":
+        from . import tiers
+        cols = [("Client", 28, "l"), ("Non échu", 12, "r"), ("0-30 j", 12, "r"), ("31-60 j", 12, "r"), ("61-90 j", 12, "r"), ("> 90 j", 12, "r"), ("Total", 12, "r")]
+        ab = tiers.aged_balance(con, eid, "client")
+        rows = [[l["tiers"]] + [E(l[k]) for k in ab["colonnes"]] + [E(l["total"])] for l in ab["lignes"] + [ab["total"]]]
+        return "Balance âgée clients", [("", cols, rows, {len(rows) - 1})]
+    if kind == "grandlivre":
+        cols = [("Date", 12, "l"), ("Jnl", 6, "l"), ("Libellé", 44, "l"), ("Débit", 13, "r"), ("Crédit", 13, "r"), ("Solde", 12, "r")]
+        secs = []
+        for b in ledger.balances(con, eid, s, e):
+            gl = ledger.grand_livre(con, eid, b["account"], s, e)
+            rows = [[g["date"], g["journal"], g["label"], E(g["debit"]) if g["debit"] else "", E(g["credit"]) if g["credit"] else "", E(g["cumul"])] for g in gl]
+            secs.append((f"{b['account']} — {b['label'] or ''}", cols, rows, set()))
+        return f"Grand livre {year}", secs
     raise ledger.LedgerError(f"Export inconnu : {kind}")
 
 def report_pdf(con, eid, kind, year):

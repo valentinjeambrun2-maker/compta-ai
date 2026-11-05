@@ -12,6 +12,8 @@ import json
 from . import ledger, edi
 
 GUIDES = {
+ "ir_edi": ["Déclaration transmise par votre tiers déclarant (expert-comptable, avocat ou OGA) via la procédure EDI-IR.",
+            "Un mandat écrit doit l'autoriser à déclarer pour vous ; l'accusé de réception DGFiP est archivé dans l'historique."],
  "ir": ["Connectez-vous sur impots.gouv.fr › Espace particulier › Déclarer mes revenus.",
         "Vérifiez les montants pré-remplis (salaires, pensions) et comparez-les avec la colonne « cases » du logiciel.",
         "Reportez les cases supplémentaires (revenus fonciers, micro, dons, emploi à domicile…).",
@@ -32,7 +34,7 @@ def validate_decl(decl_type, data):
     errs = []
     if decl_type == "ir":
         c = data.get("calcul", {})
-        if not c.get("cases_2042"):
+        if not c.get("cases_2042") and not data.get("formulaires"):
             errs.append("Aucune case renseignée.")
         if c.get("revenu_net_imposable", 0) < 0:
             errs.append("Revenu net imposable négatif.")

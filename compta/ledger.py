@@ -16,6 +16,29 @@ def cents(x):
     from decimal import Decimal, ROUND_HALF_UP
     return int((Decimal(s) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
+def search(con, eid, q=None, account=None, start=None, end=None, min_amount=None, max_amount=None, journal=None, limit=300):
+    """Recherche d'écritures (libellé, référence, compte, montant, période, journal)."""
+    s, e = _period(start, end)
+    sql = ["SELECT DISTINCT en.* FROM entries en JOIN lines l ON l.entry_id=en.id WHERE en.entity_id=? AND en.date BETWEEN ? AND ?"]
+    args = [eid, s, e]
+    if q:
+        sql.append("AND (en.label LIKE ? OR en.ref LIKE ? OR l.label LIKE ?)"); args += [f"%{q}%"] * 3
+    if account:
+        sql.append("AND l.account LIKE ?"); args.append(account + "%")
+    if journal:
+        sql.append("AND en.journal=?"); args.append(journal)
+    if min_amount not in (None, ""):
+        sql.append("AND (l.debit+l.credit)>=?"); args.append(cents(min_amount))
+    if max_amount not in (None, ""):
+        sql.append("AND (l.debit+l.credit)<=?"); args.append(cents(max_amount))
+    sql.append("ORDER BY en.date DESC, en.id DESC LIMIT ?"); args.append(limit)
+    out = []
+    for en in con.execute(" ".join(sql), args).fetchall():
+        ls = [dict(l) for l in con.execute("SELECT id,account,label,debit,credit,lettrage,pointe FROM lines WHERE entry_id=?", (en["id"],))]
+        n = con.execute("SELECT COUNT(*) FROM attachments WHERE entry_id=?", (en["id"],)).fetchone()[0]
+        out.append({**dict(en), "lines": ls, "pieces": n})
+    return out
+
 def euros(c):
     return round((c or 0) / 100, 2)
 
@@ -68,12 +91,14 @@ def post_entry(con, eid, date, journal, label, lines, ref=None, source="manual")
 def _period(start, end):
     return (start or "0000-01-01", end or "9999-12-31")
 
-def balances(con, eid, start=None, end=None, prefix=""):
+CLOSING = "cloture"   # source des écritures de détermination du résultat (soldes 6/7 → 12)
+
+def balances(con, eid, start=None, end=None, prefix="", exclude_closing=False):
     s, e = _period(start, end)
-    rows = con.execute("""SELECT l.account, a.label, SUM(l.debit) d, SUM(l.credit) c
+    rows = con.execute(f"""SELECT l.account, a.label, SUM(l.debit) d, SUM(l.credit) c
         FROM lines l JOIN entries en ON en.id=l.entry_id
         LEFT JOIN accounts a ON a.entity_id=en.entity_id AND a.code=l.account
-        WHERE en.entity_id=? AND en.date BETWEEN ? AND ? AND l.account LIKE ?
+        WHERE en.entity_id=? AND en.date BETWEEN ? AND ? AND l.account LIKE ? {"AND COALESCE(en.source,'')!='cloture'" if exclude_closing else ""}
         GROUP BY l.account ORDER BY l.account""", (eid, s, e, prefix + "%")).fetchall()
     return [{"account": r["account"], "label": r["label"], "debit": r["d"], "credit": r["c"], "solde": r["d"] - r["c"]} for r in rows]
 
@@ -101,9 +126,10 @@ def grand_livre(con, eid, account, start=None, end=None):
         rows.append({**dict(r), "cumul": run})
     return rows
 
-def income_statement(con, eid, start=None, end=None):
-    charges = [{**b, "montant": b["solde"]} for b in balances(con, eid, start, end, "6")]
-    produits = [{**b, "montant": -b["solde"]} for b in balances(con, eid, start, end, "7")]
+def income_statement(con, eid, start=None, end=None, include_closing=False):
+    """Compte de résultat. Les écritures de clôture (solde des comptes 6/7 vers 12) sont exclues par défaut."""
+    charges = [{**b, "montant": b["solde"]} for b in balances(con, eid, start, end, "6", not include_closing) if b["solde"]]
+    produits = [{**b, "montant": -b["solde"]} for b in balances(con, eid, start, end, "7", not include_closing) if b["solde"]]
     tc, tp = sum(c["montant"] for c in charges), sum(p["montant"] for p in produits)
     return {"charges": charges, "produits": produits, "total_charges": tc, "total_produits": tp, "resultat": tp - tc}
 
@@ -112,8 +138,9 @@ def balance_sheet(con, eid, end=None):
     for b in balances(con, eid, None, end):
         if b["account"][0] in "12345" and b["solde"]:
             (actif if b["solde"] > 0 else passif).append({**b, "montant": abs(b["solde"])})
-    res = income_statement(con, eid, None, end)["resultat"]
-    passif.append({"account": "12", "label": "Résultat de l'exercice (cumul)", "montant": res})
+    res = income_statement(con, eid, None, end, include_closing=True)["resultat"]
+    if res:
+        passif.append({"account": "12", "label": "Résultat en instance (exercices non clôturés)", "montant": res})
     ta, tp = sum(a["montant"] for a in actif), sum(p["montant"] for p in passif)
     return {"actif": actif, "passif": passif, "total_actif": ta, "total_passif": tp, "equilibre": ta == tp}
 
@@ -124,12 +151,15 @@ def fec(con, eid, year):
             "PieceRef","PieceDate","EcritureLib","Debit","Credit","EcritureLet","DateLet","ValidDate","Montantdevise","Idevise"]
     out = ["\t".join(head)]
     fmt = lambda c: f"{c/100:.2f}".replace(".", ",")
-    for r in con.execute("""SELECT en.id,en.date,en.journal,en.label el,en.ref,l.account,a.label al,l.debit,l.credit
+    for r in con.execute("""SELECT en.id,en.date,en.journal,en.label el,en.ref,l.account,a.label al,l.debit,l.credit,l.lettrage,l.date_lettrage
         FROM lines l JOIN entries en ON en.id=l.entry_id LEFT JOIN accounts a ON a.entity_id=en.entity_id AND a.code=l.account
         WHERE en.entity_id=? AND substr(en.date,1,4)=? ORDER BY en.date,en.id,l.id""", (eid, str(year))):
         d = r["date"].replace("-", "")
         clean = lambda s: (s or "").replace("\t", " ").replace("\n", " ")
-        out.append("\t".join([r["journal"], jl.get(r["journal"], r["journal"]), str(r["id"]), d, r["account"], clean(r["al"]),
-                              "", "", clean(r["ref"] or str(r["id"])), d, clean(r["el"]), fmt(r["debit"]), fmt(r["credit"]),
-                              "", "", d, "", "EUR"]))
+        acc = r["account"]
+        aux = acc[:3] in ("411", "401") and len(acc) > 3
+        gen = acc[:3] if aux else acc
+        out.append("\t".join([r["journal"], jl.get(r["journal"], r["journal"]), str(r["id"]), d, gen, clean(r["al"] if not aux else ("Clients" if gen == "411" else "Fournisseurs")),
+                              acc if aux else "", clean(r["al"]) if aux else "", clean(r["ref"] or str(r["id"])), d, clean(r["el"]),
+                              fmt(r["debit"]), fmt(r["credit"]), r["lettrage"] or "", (r["date_lettrage"] or "").replace("-", ""), d, "", "EUR"]))
     return "\n".join(out) + "\n"

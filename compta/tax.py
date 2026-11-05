@@ -45,80 +45,143 @@ def parts(situation, enfants):
     e = int(enfants or 0)
     return base, base + 0.5 * min(e, 2) + max(0, e - 2)
 
+CASES = {  # clé interne -> (formulaire, case, libellé)
+    "salaires": ("2042", "1AJ", "Salaires — déclarant 1"), "salaires_d2": ("2042", "1BJ", "Salaires — déclarant 2"),
+    "frais_reels": ("2042", "1AK", "Frais réels — déclarant 1"), "frais_reels_d2": ("2042", "1BK", "Frais réels — déclarant 2"),
+    "chomage": ("2042", "1AP", "Allocations chômage — déclarant 1"), "chomage_d2": ("2042", "1BP", "Allocations chômage — déclarant 2"),
+    "pensions": ("2042", "1AS", "Pensions, retraites — déclarant 1"), "pensions_d2": ("2042", "1BS", "Pensions, retraites — déclarant 2"),
+    "dividendes": ("2042", "2DC", "Revenus d'actions et parts (dividendes)"), "interets": ("2042", "2TR", "Produits de placement à revenu fixe (intérêts)"),
+    "loyers_micro_foncier": ("2042", "4BE", "Micro-foncier : recettes brutes"),
+    "pension_alimentaire": ("2042", "6GU", "Pensions alimentaires versées"), "per_versements": ("2042", "6NS", "Versements sur un PER — déclarant 1"),
+    "dons": ("2042-RICI", "7UF", "Dons aux organismes d'intérêt général"), "dons_aide": ("2042-RICI", "7UD", "Dons aux organismes d'aide aux personnes en difficulté"),
+    "emploi_domicile": ("2042-RICI", "7DB", "Sommes versées pour l'emploi d'un salarié à domicile"),
+    "garde_enfants": ("2042-RICI", "7GA", "Frais de garde des enfants de moins de 6 ans"), "ehpad": ("2042-RICI", "7CD", "Dépenses d'accueil en établissement pour personnes dépendantes"),
+    "micro_bic_vente": ("2042-C-PRO", "5KO", "Micro-BIC : ventes de marchandises (CA)"), "micro_bic_service": ("2042-C-PRO", "5KP", "Micro-BIC : prestations de services (CA)"),
+    "micro_bnc": ("2042-C-PRO", "5HQ", "Micro-BNC : recettes"),
+    "micro_bic_vente_vl": ("2042-C-PRO", "5TA", "Auto-entrepreneur avec versement libératoire : ventes"),
+    "micro_bic_service_vl": ("2042-C-PRO", "5TB", "Auto-entrepreneur avec versement libératoire : prestations BIC"),
+    "micro_bnc_vl": ("2042-C-PRO", "5TE", "Auto-entrepreneur avec versement libératoire : BNC"),
+}
+SCOLARITE = {"college": (61, "7EA"), "lycee": (153, "7EC"), "superieur": (183, "7EF")}
+
 def impot_revenu(d, year=2025):
-    """d : dict des revenus et charges annuels en euros. Renvoie le calcul détaillé + cases 2042."""
+    """Calcul détaillé de l'impôt sur le revenu d'un foyer. d : revenus et charges annuels (euros).
+    Clés reconnues : voir CASES + situation, enfants, parts, frais_reels*, option_bareme, foncier_reel, deficit_foncier_rg,
+    cases_foncier, enfants_moins_6, scolarite {college, lycee, superieur}, micro_vl, pas_verse, autres_deductions."""
     p = params(year)
     f = lambda k: float(d.get(k) or 0)
-    sal, fr = f("salaires"), f("frais_reels")
-    abatt_sal = fr if fr else (min(max(sal * p["frais_pro"]["taux"], p["frais_pro"]["min"]), p["frais_pro"]["max"]) if sal else 0)
-    abatt_sal = min(abatt_sal, sal)
-    pen = f("pensions")
-    abatt_pen = min(min(max(pen * p["pensions"]["taux"], p["pensions"]["min"]), p["pensions"]["max"]), pen) if pen else 0
+    fp = p["frais_pro"]
+    def net_salaires(sal, chom, fr):
+        brut = sal + chom
+        if not brut:
+            return 0.0, 0.0
+        ab = fr if fr else min(max(brut * fp["taux"], fp["min"]), fp["max"])
+        ab = min(ab, brut)
+        return brut - ab, ab
+    n1, ab1 = net_salaires(f("salaires"), f("chomage"), f("frais_reels"))
+    n2, ab2 = net_salaires(f("salaires_d2"), f("chomage_d2"), f("frais_reels_d2"))
+    pen = f("pensions") + f("pensions_d2")
+    pp = p["pensions"]
+    nb_pens = (1 if f("pensions") else 0) + (1 if f("pensions_d2") else 0)
+    abatt_pen = min(max(pen * pp["taux"], pp["min"] * nb_pens), pp["max"], pen) if pen else 0
     m = p["micro"]
-    micro = 0.0
+    micro, micro_vl_ca = 0.0, 0.0
+    vl = bool(d.get("micro_vl"))
     for k, taux in (("micro_bic_vente", m["bic_vente"]), ("micro_bic_service", m["bic_service"]), ("micro_bnc", m["bnc"])):
-        if f(k):
-            micro += max(f(k) * (1 - taux), 0) if f(k) * taux >= m["min"] else max(f(k) - m["min"], 0)
+        ca = f(k)
+        if ca:
+            net = max(ca * (1 - taux), 0) if ca * taux >= m["min"] else max(ca - m["min"], 0)
+            if vl:
+                micro_vl_ca += net
+            else:
+                micro += net
     loyers = f("loyers_micro_foncier")
+    notes = []
     if loyers > p["micro_foncier"]["plafond"]:
-        notes_foncier = "Loyers > 15 000 € : régime réel obligatoire (déclaration 2044) — calcul indicatif."
-    else:
-        notes_foncier = None
+        notes.append("Loyers > 15 000 € : régime réel obligatoire (déclaration 2044).")
     foncier = loyers * (1 - p["micro_foncier"]["abattement"])
-    reel = f("foncier_reel")           # revenu foncier net imposable au réel (2044), après déficits antérieurs
+    reel = f("foncier_reel")
     if loyers and (reel or f("deficit_foncier_rg")):
-        notes_foncier = "Micro-foncier et régime réel ne peuvent pas être cumulés : choisissez l'un des deux."
+        notes.append("Micro-foncier et régime réel ne peuvent pas être cumulés : choisissez l'un des deux.")
     foncier += reel
-    rbg = max(0.0, (sal - abatt_sal) + (pen - abatt_pen) + micro + foncier - f("deficit_foncier_rg"))
+    capitaux = f("dividendes") + f("interets")
+    option_bareme = bool(d.get("option_bareme"))
+    cap_bareme = (f("dividendes") * 0.6 + f("interets")) if option_bareme else 0.0
+    rbg = max(0.0, n1 + n2 + (pen - abatt_pen) + micro + foncier + cap_bareme - f("deficit_foncier_rg"))
     deductions = f("pension_alimentaire") + f("per_versements") + f("autres_deductions")
     rni = max(0.0, rbg - deductions)
     base_parts, nb_parts = parts(d.get("situation", "celibataire"), d.get("enfants"))
     if d.get("parts"):
         nb_parts = float(d["parts"])
-    i_qf = _bareme(rni / nb_parts, p)[0] * nb_parts
-    i_base, _ = _bareme(rni / base_parts, p)
-    i_base *= base_parts
-    tmi = _bareme(rni / nb_parts, p)[1]
+    i_qf, tmi = _bareme(rni / nb_parts, p)
+    i_qf *= nb_parts
+    i_base = _bareme(rni / base_parts, p)[0] * base_parts
     plafond = p["plafond_demi_part"] * (nb_parts - base_parts) / 0.5
     plafonnement = max(0.0, (i_base - i_qf) - plafond)
     brut = i_qf + plafonnement
     seuil, base_dec = p["decote"]["couple" if base_parts == 2 else "seul"]
     decote = min(brut, max(0.0, base_dec - p["decote"]["taux"] * brut)) if brut <= seuil else 0.0
     apres_decote = brut - decote
-    # Réductions (non remboursables)
+    # Réductions d'impôt (non remboursables)
     dons_aide = min(f("dons_aide"), p["dons"]["plafond_aide"])
-    dons_gen = f("dons") + max(0, f("dons_aide") - p["dons"]["plafond_aide"])
-    dons_gen = min(dons_gen, rni * p["dons"]["limite_revenu"])
-    red_dons = dons_aide * p["dons"]["aide"] + dons_gen * p["dons"]["general"]
-    reductions = min(apres_decote, red_dons)
-    # Crédits (remboursables)
-    enfants_moins_6 = int(d.get("enfants_moins_6") or (1 if f("garde_enfants") else 0))
-    credit_garde = min(f("garde_enfants"), p["garde"]["plafond"] * max(enfants_moins_6, 1)) * p["garde"]["taux"]
-    credit_dom = min(f("emploi_domicile"), p["emploi_domicile"]["plafond"]) * p["emploi_domicile"]["taux"]
-    capitaux = f("dividendes") + f("interets")
-    pfu = capitaux * p["pfu_ir"]
+    dons_gen = min(f("dons") + max(0, f("dons_aide") - p["dons"]["plafond_aide"]), rni * p["dons"]["limite_revenu"])
+    red = {"Dons": dons_aide * p["dons"]["aide"] + dons_gen * p["dons"]["general"],
+           "Hébergement en établissement (EHPAD)": min(f("ehpad"), 10000) * 0.25}
+    sco = d.get("scolarite") or {}
+    red["Frais de scolarité"] = sum(SCOLARITE[k][0] * int(sco.get(k) or 0) for k in SCOLARITE)
+    tot_red = sum(red.values())
+    reductions = min(apres_decote, tot_red)
+    # Crédits d'impôt (remboursables)
+    e6 = int(d.get("enfants_moins_6") or (1 if f("garde_enfants") else 0))
+    credit_garde = min(f("garde_enfants"), p["garde"]["plafond"] * max(e6, 1)) * p["garde"]["taux"]
+    plaf_dom = min(p["emploi_domicile"]["plafond"] + 1500 * int(d.get("enfants") or 0), 15000)
+    credit_dom = min(f("emploi_domicile"), plaf_dom) * p["emploi_domicile"]["taux"]
+    pfu = 0.0 if option_bareme else capitaux * p["pfu_ir"]
     ps = (capitaux + foncier) * p["ps"]
     net_ir = apres_decote - reductions - credit_garde - credit_dom + pfu
     total = net_ir + ps
+    pas = f("pas_verse")
     r = lambda x: round(x)
-    cases = {k: r(v) for k, v in {
-        "1AJ Salaires": sal, "1AK Frais réels": fr, "1AS Pensions, retraites": pen, "4BE Micro-foncier (loyers bruts)": loyers,
-        "2DC Dividendes": f("dividendes"), "2TR Intérêts": f("interets"), "5KO Micro-BIC ventes (CA)": f("micro_bic_vente"),
-        "5KP Micro-BIC services (CA)": f("micro_bic_service"), "5HQ Micro-BNC (recettes)": f("micro_bnc"),
-        "6DD Pension alimentaire versée": f("pension_alimentaire"), "6NS Versements PER": f("per_versements"),
-        "7UF Dons intérêt général": f("dons"), "7UD Dons aide aux personnes": f("dons_aide"),
-        "7DB Emploi à domicile": f("emploi_domicile"), "7GA Garde d'enfants hors domicile": f("garde_enfants")}.items() if v}
-    cases.update({k: round(v) for k, v in (d.get("cases_foncier") or {}).items() if v})
-    revenus_tot = sal + pen + f("micro_bic_vente") + f("micro_bic_service") + f("micro_bnc") + loyers + reel + capitaux
-    notes = [n for n in [notes_foncier,
-        "Option pour le barème progressif sur les revenus de capitaux non simulée (PFU 12,8 % + PS 17,2 % appliqués)." if capitaux else None,
-        "Plafond PER non contrôlé : vérifiez le montant déductible sur votre avis d'imposition." if f("per_versements") else None,
-        "Plafonnement du quotient familial appliqué." if plafonnement else None] if n]
+    formulaires = {}
+    def add(key, val):
+        if val:
+            form, case, lab = CASES[key]
+            formulaires.setdefault(form, []).append({"case": case, "libelle": lab, "montant": r(val)})
+    for k in ("salaires", "salaires_d2", "frais_reels", "frais_reels_d2", "chomage", "chomage_d2", "pensions", "pensions_d2",
+              "dividendes", "interets", "loyers_micro_foncier", "pension_alimentaire", "per_versements", "dons", "dons_aide",
+              "emploi_domicile", "garde_enfants", "ehpad"):
+        add(k, f(k))
+    for k in ("micro_bic_vente", "micro_bic_service", "micro_bnc"):
+        add(k + ("_vl" if vl else ""), f(k))
+    if option_bareme:
+        formulaires.setdefault("2042", []).append({"case": "2OP", "libelle": "Option pour l'imposition au barème des revenus de capitaux", "montant": "☑"})
+    for k, (mt, case) in SCOLARITE.items():
+        if int(sco.get(k) or 0):
+            n = int(sco[k])
+            formulaires.setdefault("2042-RICI", []).append({"case": case, "libelle": f"Enfants scolarisés ({ {'college': 'collège', 'lycee': 'lycée', 'superieur': 'enseignement supérieur'}[k]})",
+                                                            "montant": f"{n} enfant{'s' if n > 1 else ''}"})
+    for lab, v in (d.get("cases_foncier") or {}).items():
+        if v:
+            form = "2042" if lab[:3] in ("4BA", "4BB", "4BC", "4BD") else "2044"
+            formulaires.setdefault(form, []).append({"case": lab[:3], "libelle": lab[4:], "montant": r(v)})
+    cases = {f"{x['case']} {x['libelle']}": x["montant"] for lst in formulaires.values() for x in lst}
+    revenus_tot = f("salaires") + f("salaires_d2") + f("chomage") + f("chomage_d2") + pen + f("micro_bic_vente") + f("micro_bic_service") + f("micro_bnc") + loyers + reel + capitaux
+    if capitaux and not option_bareme:
+        notes.append("Revenus de capitaux au prélèvement forfaitaire (PFU 12,8 % + PS 17,2 %) ; l'option pour le barème (case 2OP) est comparée par l'agent.")
+    if f("per_versements"):
+        notes.append("Vérifiez que le versement PER respecte le plafond figurant sur votre avis d'impôt.")
+    if plafonnement:
+        notes.append("Plafonnement du quotient familial appliqué.")
+    if vl:
+        notes.append("Versement libératoire : chiffre d'affaires non réimposé, mais pris en compte pour le taux effectif et le revenu fiscal de référence.")
+    rfr = rni + (0 if option_bareme else capitaux) + micro_vl_ca
     return {"annee_revenus": int(year), "parts": nb_parts, "revenu_brut_global": r(rbg), "revenu_net_imposable": r(rni),
-            "impot_bareme": r(i_qf), "plafonnement_qf": r(plafonnement), "impot_brut": r(brut), "decote": r(decote),
-            "reductions": r(reductions), "credits": r(credit_garde + credit_dom), "pfu_ir": r(pfu), "impot_revenu_net": r(net_ir),
-            "prelevements_sociaux": r(ps), "total_a_payer": r(total), "tmi": f"{tmi*100:.0f} %",
-            "taux_moyen": f"{(total / revenus_tot * 100) if revenus_tot else 0:.1f} %", "cases_2042": cases, "notes": notes}
+            "revenu_fiscal_reference": r(rfr), "abattements_frais": r(ab1 + ab2), "impot_bareme": r(i_qf), "plafonnement_qf": r(plafonnement),
+            "impot_brut": r(brut), "decote": r(decote), "reductions": r(reductions), "detail_reductions": {k: r(v) for k, v in red.items() if v},
+            "credits": r(credit_garde + credit_dom), "detail_credits": {k: r(v) for k, v in (("Garde d'enfants", credit_garde), ("Emploi à domicile", credit_dom)) if v},
+            "pfu_ir": r(pfu), "impot_revenu_net": r(net_ir), "prelevements_sociaux": r(ps), "total_a_payer": r(total),
+            "deja_preleve": r(pas), "solde": r(total - pas), "tmi": f"{tmi*100:.0f} %", "tmi_num": tmi,
+            "taux_moyen": f"{(total / revenus_tot * 100) if revenus_tot else 0:.1f} %", "cases_2042": cases, "formulaires": formulaires, "notes": notes}
 
 def impot_societes(resultat_eur, pme=True, year=2025):
     p = params(year)["is"]
@@ -147,18 +210,29 @@ def ca3(con, eid, start, end):
             out[r["rate"] or 0] = {"base": r["b"] or 0, "tva": sign * (r["t"] or 0)}
         return out
     col, ded = by_rate("44571", 1), by_rate("44566", -1)
+    for k, v in by_rate("4452", 1).items():           # TVA autoliquidée (intracom, import, BTP)
+        col.setdefault(k, {"base": 0, "tva": 0}); col[k]["base"] += v["base"]; col[k]["tva"] += v["tva"]
+    ded_auto = by_rate("445662", -1)
+    ded_immo = by_rate("44562", -1)
     g = lambda d, rate, k: d.get(rate, {}).get(k, 0)
     brute = sum(v["tva"] for v in col.values())
-    deductible = sum(v["tva"] for v in ded.values())
+    deductible = sum(v["tva"] for v in ded.values()) + sum(v["tva"] for v in ded_auto.values()) + sum(v["tva"] for v in ded_immo.values())
+    from . import vat
+    intl = vat.international_lines(con, eid, start, end)
     net = brute - deductible
     e = ledger.euros
-    ventes_ht = sum(v["base"] for v in col.values())
+    ventes_ht = sum(v["base"] for v in col.values()) - intl["acquisitions_ue_base"]
     lignes = {
         "A01 Ventes, prestations de services (HT)": e(ventes_ht),
         "08 Taux normal 20 % — base HT": e(g(col, 20.0, "base")), "08 Taux normal 20 % — TVA": e(g(col, 20.0, "tva")),
         "9B Taux 10 % — base HT": e(g(col, 10.0, "base")), "9B Taux 10 % — TVA": e(g(col, 10.0, "tva")),
         "09 Taux 5,5 % — base HT": e(g(col, 5.5, "base")), "09 Taux 5,5 % — TVA": e(g(col, 5.5, "tva")),
-        "16 Total TVA brute due": e(brute), "19 TVA déductible sur autres biens et services": e(deductible),
+        "04 Exportations hors UE (base)": e(intl["exportations"]), "06 Livraisons intracommunautaires (base)": e(intl["livraisons_ue"]),
+        "E3 Prestations de services intracommunautaires (base)": e(intl["prestations_ue"]),
+        "B2 Acquisitions intracommunautaires / autoliquidation (base)": e(intl["acquisitions_ue_base"]),
+        "17 dont TVA due sur acquisitions intracommunautaires / autoliquidée": e(intl["tva_autoliquidee"]),
+        "16 Total TVA brute due": e(brute), "19 TVA déductible sur immobilisations": e(sum(v["tva"] for v in ded_immo.values())),
+        "20 TVA déductible sur autres biens et services": e(deductible - sum(v["tva"] for v in ded_immo.values())),
         "23 Total TVA déductible": e(deductible), "25 Crédit de TVA": e(max(0, -net)),
         "28 TVA nette due": e(max(0, net)), "32 Total à payer": e(max(0, net))}
     return {"periode": f"{start} → {end}", "lignes": lignes, "a_payer": e(max(0, net)), "credit": e(max(0, -net)),

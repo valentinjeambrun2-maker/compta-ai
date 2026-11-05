@@ -10,7 +10,7 @@ from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
 from compta import (db, ledger, bank, ai, tax, business, filing, pcg, auth, documents, payroll, liasse, foncier,
-                    edi, sales, expenses, exports)
+                    edi, sales, expenses, exports, tiers, closing, analysis, vat, profile, tax_agent, obligations, agents)
 
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 CON = None
@@ -252,7 +252,8 @@ def invoices(c, eid, q, b):
 @route("POST", "/api/invoices", "ecriture")
 def create_invoice(c, eid, q, b):
     return {"id": business.create_invoice(c, eid, b["kind"], b["party"], b["date"], b["lines"], b.get("number"), b.get("due"),
-                                          b.get("account"), b.get("nature") or "services", b.get("email"))}
+                                          b.get("account"), b.get("nature") or "services", b.get("email"), operation=b.get("operation") or "france",
+                                          tiers_info={k: b[k] for k in ("tva_intra", "pays", "siren") if b.get(k)})}
 
 @route("POST", "/api/invoices/extract", "ecriture")
 def extract(c, eid, q, b):
@@ -478,7 +479,7 @@ def add_asset(c, eid, q, b):
     return {"id": business.add_asset(c, eid, b["label"], b["date"], b["cost"], b["years"])}
 
 @route("POST", "/api/closing", "ecriture")
-def closing(c, eid, q, b):
+def closing_route(c, eid, q, b):
     if auth.role(c, REQ.user, eid) == "lecteur":
         raise auth.AuthError("Accès refusé")
     return business.close_year(c, eid, int(b["year"]), b.get("pme", True))
@@ -497,12 +498,250 @@ def fec(c, eid, q, b):
     siren = (ledger.entity(c, eid).get("siret") or "000000000").replace(" ", "")[:9]
     return Response(ledger.fec(c, eid, y).encode("utf-8"), "text/plain; charset=utf-8", filename=f"{siren}FEC{y}1231.txt")
 
-@route("GET", r"/api/export/(pdf|xlsx)/(resultat|bilan|balance|journal|factures|liasse|paie)")
+@route("GET", r"/api/export/(pdf|xlsx)/(resultat|bilan|balance|journal|factures|liasse|paie|sig|agee|grandlivre)")
 def export(c, eid, q, b, fmt, kind):
     y = year_of(q)
     if fmt == "pdf":
         return pdf(exports.report_pdf(c, eid, kind, y), f"{kind}-{y}.pdf")
     return xl(exports.report_xlsx(c, eid, kind, y), f"{kind}-{y}.xlsx")
+
+# ======================= Tiers et lettrage =======================
+@route("GET", "/api/tiers")
+def tiers_list(c, eid, q, b):
+    return euroize(tiers.listing(c, eid, qv(q, "type")))
+
+@route("POST", "/api/tiers", "ecriture")
+def tiers_create(c, eid, q, b):
+    t = tiers.find_or_create(c, eid, b["type"], b["nom"], **{k: b.get(k) for k in ("siren", "tva_intra", "pays", "email", "telephone", "adresse", "delai_jours", "notes")})
+    return {"id": t["id"], "account": t["account"]}
+
+@route("POST", r"/api/tiers/(\d+)", "ecriture")
+def tiers_update(c, eid, q, b, tid):
+    tiers.update(c, eid, int(tid), b)
+    return {"ok": True}
+
+@route("GET", r"/api/tiers/(\d+)/lines")
+def tiers_lines(c, eid, q, b, tid):
+    t = c.execute("SELECT * FROM tiers WHERE id=? AND entity_id=?", (tid, eid)).fetchone()
+    if not t:
+        raise ledger.LedgerError("Tiers introuvable")
+    return {"tiers": dict(t), "lignes": euroize(tiers.open_lines(c, eid, t["account"])), "risque": tiers.risk_score(c, eid, int(tid)) if t["type"] == "client" else None}
+
+@route("POST", "/api/lettrage", "ecriture")
+def lettrage(c, eid, q, b):
+    return {"code": tiers.letter(c, eid, [int(i) for i in b["line_ids"]])}
+
+@route("POST", "/api/lettrage/auto", "ecriture")
+def lettrage_auto(c, eid, q, b):
+    return tiers.auto_letter(c, eid, b.get("account"))
+
+@route("POST", "/api/lettrage/undo", "ecriture")
+def lettrage_undo(c, eid, q, b):
+    tiers.unletter(c, eid, b["account"], b["code"])
+    return {"ok": True}
+
+@route("GET", "/api/aged")
+def aged(c, eid, q, b):
+    return euroize(tiers.aged_balance(c, eid, qv(q, "type", "client")))
+
+# ======================= Révision et clôture =======================
+@route("GET", "/api/rappro")
+def rappro(c, eid, q, b):
+    return closing.reconciliation(c, eid, qv(q, "date", dt.date.today().isoformat()), qv(q, "solde"))
+
+@route("POST", "/api/rappro/statement", "ecriture")
+def rappro_statement(c, eid, q, b):
+    closing.set_statement(c, eid, b["date"], b["solde"])
+    return closing.reconciliation(c, eid, b["date"])
+
+@route("POST", r"/api/lines/(\d+)/point", "ecriture")
+def point(c, eid, q, b, lid):
+    return {"pointe": closing.toggle_point(c, eid, int(lid), b.get("value"))}
+
+@route("POST", r"/api/entries/(\d+)/reverse", "ecriture")
+def reverse(c, eid, q, b, en):
+    return {"entry_id": closing.reverse_entry(c, eid, int(en), b.get("date"))}
+
+@route("GET", "/api/search")
+def search_route(c, eid, q, b):
+    return euroize(ledger.search(c, eid, qv(q, "q"), qv(q, "account"), qv(q, "start"), qv(q, "end"), qv(q, "min"), qv(q, "max"), qv(q, "journal")))
+
+@route("GET", "/api/regularisations/suggest")
+def regul_suggest(c, eid, q, b):
+    return closing.suggest_regularisations(c, eid, year_of(q))
+
+@route("POST", "/api/regularisations", "ecriture")
+def regul(c, eid, q, b):
+    return closing.regularisation(c, eid, b["type"], b.get("account"), b["montant"], int(b["year"]), b.get("label", ""), b.get("tva_rate", 0), b.get("auto_reverse", True))
+
+@route("POST", "/api/result/allocate", "ecriture")
+def allocate(c, eid, q, b):
+    return closing.allocate_result(c, eid, int(b["year"]), b["date"], b.get("reserve_legale"), b.get("dividendes", 0))
+
+@route("GET", "/api/attachments")
+def attachments(c, eid, q, b):
+    return [dict(r) for r in c.execute("SELECT id, name, mime, entry_id, created FROM attachments WHERE entity_id=? AND (? IS NULL OR entry_id=?)", (eid, qv(q, "entry_id"), qv(q, "entry_id")))]
+
+@route("POST", "/api/attachments", "ecriture")
+def attach_route(c, eid, q, b):
+    f = b["file"]
+    return {"id": closing.attach(c, eid, f.get("name"), f.get("mime"), b64(f["data"]), b.get("entry_id"))}
+
+@route("GET", r"/api/attachments/(\d+)")
+def attachment(c, eid, q, b, aid):
+    r = c.execute("SELECT name, mime, data FROM attachments WHERE id=? AND entity_id=?", (aid, eid)).fetchone()
+    if not r:
+        raise ledger.LedgerError("Pièce introuvable")
+    mime = r["mime"] if r["mime"] in ("application/pdf", "image/jpeg", "image/png", "image/webp") else "application/octet-stream"
+    return Response(r["data"], mime, filename=re.sub(r"[^\w.\-]", "_", r["name"] or "piece"))
+
+# ======================= Analyse =======================
+@route("GET", "/api/analysis/sig")
+def a_sig(c, eid, q, b):
+    r = analysis.sig(c, eid, year_of(q)); r.pop("_raw", None)
+    return r
+
+@route("GET", "/api/analysis/ratios")
+def a_ratios(c, eid, q, b):
+    return analysis.ratios(c, eid, year_of(q))
+
+@route("GET", "/api/analysis/forecast")
+def a_forecast(c, eid, q, b):
+    return analysis.cash_forecast(c, eid, int(qv(q, "months", 12)))
+
+@route("GET", "/api/budget")
+def budget(c, eid, q, b):
+    return analysis.budget_vs_actual(c, eid, year_of(q))
+
+@route("POST", "/api/budget", "ecriture")
+def budget_set(c, eid, q, b):
+    analysis.set_budget(c, eid, int(b["year"]), b["account"], b["annual"])
+    return {"ok": True}
+
+# ======================= TVA simplifiée =======================
+@route("GET", "/api/tax/ca12")
+def ca12(c, eid, q, b):
+    return vat.ca12(c, eid, year_of(q))
+
+@route("POST", "/api/tax/acompte", "ecriture")
+def acompte(c, eid, q, b):
+    return {"entry_id": vat.pay_acompte(c, eid, b.get("date") or dt.date.today().isoformat(), b["montant"])}
+
+# ======================= Profil et entretien IA =======================
+def _kind(c, eid):
+    return ledger.entity(c, eid)["kind"]
+
+@route("GET", "/api/profile")
+def profile_get(c, eid, q, b):
+    k = _kind(c, eid)
+    p, done = profile.get(c, eid)
+    return {"kind": k, "termine": done, "progress": profile.progress(k, p), "question": profile.public(profile.next_question(k, p)),
+            "profil": profile.summary(k, p), "echeances": profile.deadlines(k, p, int(qv(q, "year", dt.date.today().year))), "ia": ai.enabled()}
+
+@route("POST", "/api/profile/answer", "ecriture")
+def profile_answer(c, eid, q, b):
+    return profile.answer(c, eid, _kind(c, eid), b.get("qid"), b.get("value"), b.get("free_text"), bool(b.get("skip")))
+
+@route("POST", "/api/profile/edit", "ecriture")
+def profile_edit(c, eid, q, b):
+    k = _kind(c, eid)
+    p, done = profile.get(c, eid)
+    qd = profile.BY_ID.get(b["id"])
+    if not qd:
+        raise ledger.LedgerError("Champ inconnu")
+    v = profile.parse_answer(qd, b.get("value"))
+    if v is None:
+        p.pop(b["id"], None)
+    else:
+        p[b["id"]] = v
+    profile.save(c, eid, p, done)
+    profile.apply(c, eid, k, p)
+    return {"ok": True, "profil": profile.summary(k, p)}
+
+@route("POST", "/api/profile/restart", "ecriture")
+def profile_restart(c, eid, q, b):
+    p, _ = profile.get(c, eid)
+    p.pop("_skipped", None)
+    profile.save(c, eid, p, False)
+    return {"ok": True}
+
+# ======================= Agent Impôts (particuliers) =======================
+@route("GET", "/api/ir/declaration")
+def ir_decl(c, eid, q, b):
+    return tax_agent.build(c, eid, year_of(q))
+
+@route("POST", "/api/ir/declaration")
+def ir_decl_post(c, eid, q, b):
+    return tax_agent.build(c, eid, int(b.get("year")), b.get("overrides"))
+
+@route("GET", "/api/ir/documents")
+def ir_docs(c, eid, q, b):
+    return tax_agent.list_documents(c, eid, year_of(q))
+
+@route("POST", "/api/ir/documents", "ecriture")
+def ir_doc_add(c, eid, q, b):
+    f = b["file"]
+    try:
+        return tax_agent.add_document(c, eid, int(b["year"]), f.get("name", "document"), f.get("mime"), b64(f["data"]), b.get("kind"), b.get("beneficiaire"))
+    except documents.DocumentError as e:
+        raise ledger.LedgerError(str(e))
+
+@route("POST", r"/api/ir/documents/(\d+)/delete", "ecriture")
+def ir_doc_del(c, eid, q, b, did):
+    c.execute("DELETE FROM tax_documents WHERE id=? AND entity_id=?", (did, eid))
+    return {"ok": True}
+
+@route("POST", "/api/ir/review")
+def ir_review(c, eid, q, b):
+    d = tax_agent.build(c, eid, int(b["year"]), b.get("overrides"))
+    p, _ = profile.get(c, eid)
+    return {"remarques": tax_agent.ai_review(d, p), "ia": ai.enabled()}
+
+@route("POST", "/api/ir/submit", "ecriture")
+def ir_submit(c, eid, q, b):
+    d = tax_agent.build(c, eid, int(b["year"]), b.get("overrides"))
+    return tax_agent.submit(c, eid, int(b["year"]), d)
+
+# ======================= Obligations de l'entreprise =======================
+@route("GET", "/api/obligations")
+def oblig(c, eid, q, b):
+    return obligations.listing(c, eid, year_of(q))
+
+@route("POST", "/api/obligations/run", "ecriture")
+def oblig_run(c, eid, q, b):
+    return obligations.run(c, eid, int(b["year"]), b.get("only_due", True))
+
+@route("POST", "/api/obligations/file", "ecriture")
+def oblig_file(c, eid, q, b):
+    o = next((x for x in obligations.listing(c, eid, int(b["year"]))["obligations"] if x["type"] == b["type"] and x["periode"] == b["periode"]), None)
+    if not o:
+        raise ledger.LedgerError("Obligation introuvable")
+    data = json.loads(json.dumps(obligations.prepare(c, eid, o), default=str))
+    return {**filing.save_and_submit(c, eid, o["type"], o["periode"], data, submit=bool(b.get("submit", True))), "donnees": data}
+
+# ======================= Agents IA =======================
+@route("GET", r"/api/agents/tab/(\w+)")
+def agent_tab(c, eid, q, b, tab):
+    r = agents.run(c, eid, agents.for_tab(_kind(c, eid), tab), year_of(q))
+    r.pop("_ctx", None)
+    return r
+
+@route("GET", r"/api/agents/(\w+)")
+def agent_get(c, eid, q, b, name):
+    if name not in agents.AGENTS:
+        raise ledger.LedgerError("Agent inconnu")
+    r = agents.run(c, eid, name, year_of(q)); r.pop("_ctx", None)
+    return r
+
+@route("POST", r"/api/agents/(\w+)/ask")
+def agent_ask(c, eid, q, b, name):
+    if name not in agents.AGENTS:
+        raise ledger.LedgerError("Agent inconnu")
+    return agents.ask(c, eid, name, int(b.get("year", dt.date.today().year)), b["question"], b.get("history"))
+
+@route("GET", "/api/agents")
+def agent_list(c, eid, q, b):
+    return [{"id": k, "titre": v[0], "description": v[1]} for k, v in agents.AGENTS.items()]
 
 # ======================= Serveur HTTP =======================
 SEC_HEADERS = {

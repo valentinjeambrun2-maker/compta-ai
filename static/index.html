@@ -122,7 +122,7 @@ body.ro button.b:not(.calc),body.ro .wr{display:none!important}
   <div class="user"><button class="lnk small" id="userBtn" onclick="toggleMenu()" style="white-space:nowrap"></button><div class="menu hidden" id="menu"></div></div>
 </header>
 <nav><div class="in" id="nav"></div></nav>
-<main><section class="hero" id="hero"></section><div id="view"></div></main>
+<main><section class="hero" id="hero"></section><div id="agent"></div><div id="view"></div></main>
 <button class="fab" onclick="TAB='ai';render();scrollTo({top:0,behavior:'smooth'})" aria-label="Demander à l'IA"><span>✦</span><b style="font-weight:400">Demander à l'IA</b></button>
 <div id="toast"></div>
 <script>
@@ -147,7 +147,7 @@ function dropZone(id,label,onfile,accept='.pdf,image/*'){return `<label class="d
   ondrop="event.preventDefault();this.classList.remove('over');${onfile}(event.dataTransfer.files[0])"><input type="file" accept="${accept}" class="hidden" onchange="${onfile}(this.files[0])">✦ ${label}<br><span class="small">Glissez un <b>PDF</b> ou une <b>photo</b>, ou cliquez pour choisir</span></label>`}
 const today=()=>new Date().toISOString().slice(0,10);
 const exportBtns=(kind)=>`<span class="row"><button class="g small" onclick="download('/api/export/pdf/${kind}?year=${YEAR}')">PDF</button><button class="g small" onclick="download('/api/export/xlsx/${kind}?year=${YEAR}')">Excel</button></span>`;
-const TABS={entreprise:[['dash','Tableau de bord'],['bank','Banque & IA'],['inv','Factures'],['quotes','Devis'],['ndf','Notes de frais'],['pay','Paie'],['jrn','Écritures'],['rep','États financiers'],['tva','TVA'],['tax','Impôts & liasse'],['ai','Assistant IA'],['close','Clôture & exports'],['set','Paramètres']],
+var TABS={entreprise:[['dash','Tableau de bord'],['bank','Banque & IA'],['inv','Factures'],['quotes','Devis'],['ndf','Notes de frais'],['pay','Paie'],['jrn','Écritures'],['rep','États financiers'],['tva','TVA'],['tax','Impôts & liasse'],['ai','Assistant IA'],['close','Clôture & exports'],['set','Paramètres']],
  particulier:[['dash','Tableau de bord'],['bank','Banque & IA'],['jrn','Écritures'],['rep','Budget'],['tax','Déclaration de revenus'],['ai','Assistant IA'],['close','Exports'],['set','Paramètres']]};
 
 async function init(){
@@ -198,7 +198,7 @@ async function createEnt(){
   const k=$('#nKind').value;const r=await api('/api/entities',{name:$('#nName').value||'Nouveau dossier',kind:k,legal_form:k=='entreprise'?$('#nForm').value:null,tva_regime:k=='entreprise'?$('#nTva').value:'aucune',tva_exigibilite:k=='entreprise'?$('#nEx').value:'debits',siret:$('#nSiret').value,address:$('#nAddr').value});
   toast('Dossier créé, plan comptable installé');loadEnts(r.id)}
 
-const HERO={dash:['Tableau de bord.','Vos chiffres clés, à jour à chaque opération.'],
+var HERO={dash:['Tableau de bord.','Vos chiffres clés, à jour à chaque opération.'],
  bank:['Banque & IA.','Importez un relevé. L\'IA classe, ventile la TVA et lettre vos factures.'],
  inv:['Factures.','Numérotation légale, mentions obligatoires, PDF en un clic.'],
  jrn:['Écritures.','La partie double, sans effort. Toujours équilibrée.'],
@@ -558,7 +558,7 @@ async function invite(){const r=await api('/api/members',{email:$('#mE').value,n
   toast('Membre ajouté');if(!r.mot_de_passe_provisoire||r.email_envoye)settings()}
 
 window.addEventListener('unhandledrejection',e=>e.preventDefault()); // erreurs déjà affichées par toast()
-init();
 </script>
+<script src="v2.js"></script>
 </body>
 </html>

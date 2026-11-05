@@ -9,7 +9,8 @@ def next_number(con, eid, year):
     n = con.execute("SELECT COUNT(*) FROM invoices WHERE entity_id=? AND kind='sale' AND substr(date,1,4)=?", (eid, year)).fetchone()[0]
     return f"FA-{year}-{n + 1:04d}"
 
-def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, account=None, nature="services", email=None, quote_id=None):
+def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, account=None, nature="services", email=None, quote_id=None,
+                   operation="france", tiers_info=None):
     """TVA sur les encaissements : pour les prestations de services d'une entité qui n'a pas opté pour les débits,
     la TVA est d'abord inscrite en attente (44574 / 44586) puis devient exigible / déductible au règlement."""
     if kind not in ("sale", "purchase"):
@@ -17,6 +18,12 @@ def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, ac
     if not lines:
         raise ledger.LedgerError("La facture doit avoir au moins une ligne")
     ent = ledger.entity(con, eid)
+    from . import tiers as T, vat
+    t = T.find_or_create(con, eid, "client" if kind == "sale" else "fournisseur", party, email=email, **(tiers_info or {}))
+    if not due:
+        due = (dt.date.fromisoformat(date) + dt.timedelta(days=int(t.get("delai_jours") or 30))).isoformat()
+    if operation != "france":
+        return vat.create_international_invoice(con, eid, kind, t, date, lines, number, due, account, nature, email, quote_id, operation)
     franchise = ent["tva_regime"] == "franchise" and kind == "sale"
     encaiss = (ent.get("tva_exigibilite") == "encaissements" and nature == "services")
     by_rate, out = {}, []
@@ -34,7 +41,7 @@ def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, ac
     if kind == "sale":
         number = next_number(con, eid, date[:4])  # numérotation chronologique continue obligatoire
         account = account or "706"
-        el = [{"account": "411", "debit": ttc, "label": f"{number} {party}"}, {"account": account, "credit": ht}]
+        el = [{"account": t["account"], "debit": ttc, "label": f"{number} {party}"}, {"account": account, "credit": ht}]
         el += [{"account": "44574" if encaiss else "44571", "credit": t, "rate": r, "base": by_rate[r]} for r, t in tvas.items() if t]
         jr = "VE"
     else:
@@ -42,13 +49,32 @@ def create_invoice(con, eid, kind, party, date, lines, number=None, due=None, ac
         account = account or "606"
         el = [{"account": account, "debit": ht}]
         el += [{"account": "44586" if encaiss else "44566", "debit": t, "rate": r, "base": by_rate[r]} for r, t in tvas.items() if t]
-        el.append({"account": "401", "credit": ttc, "label": f"{number} {party}"})
+        el.append({"account": t["account"], "credit": ttc, "label": f"{number} {party}"})
         jr = "AC"
     en = ledger.post_entry(con, eid, date, jr, f"Facture {number} — {party}", el, ref=number, source="invoice")
-    due = due or (dt.date.fromisoformat(date) + dt.timedelta(days=30)).isoformat()
-    cur = con.execute("INSERT INTO invoices(entity_id,kind,number,date,due,party,ht,tva,ttc,lines,account,entry_id,nature,email,quote_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                      (eid, kind, number, date, due, party, ht, tva, ttc, json.dumps(out), account, en, nature, email, quote_id))
+    return save_invoice(con, eid, kind, number, date, due, party, ht, tva, ttc, out, account, en, nature, email, quote_id, t, "france")
+
+def save_invoice(con, eid, kind, number, date, due, party, ht, tva, ttc, out, account, en, nature, email, quote_id, t, operation):
+    cur = con.execute("""INSERT INTO invoices(entity_id,kind,number,date,due,party,ht,tva,ttc,lines,account,entry_id,nature,email,quote_id,
+                         tiers_id,tiers_account,operation) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                      (eid, kind, number, date, due, party, ht, tva, ttc, json.dumps(out), account, en, nature, email or t.get("email"), quote_id,
+                       t["id"], t["account"], operation))
     return cur.lastrowid
+
+def tiers_account(inv):
+    return inv["tiers_account"] or ("411" if inv["kind"] == "sale" else "401")
+
+def letter_invoice(con, eid, inv_id, pay_entry):
+    """Lettre la ligne de tiers de la facture avec celle du règlement."""
+    from . import tiers as T
+    inv = con.execute("SELECT * FROM invoices WHERE id=?", (inv_id,)).fetchone()
+    acc = tiers_account(inv)
+    ids = [r[0] for r in con.execute("SELECT id FROM lines WHERE entry_id IN (?,?) AND account=? AND lettrage IS NULL", (inv["entry_id"], pay_entry, acc))]
+    if len(ids) == 2:
+        try:
+            T.letter(con, eid, ids)
+        except ledger.LedgerError:
+            pass
 
 def pay_invoice(con, eid, inv_id, date=None):
     inv = con.execute("SELECT * FROM invoices WHERE id=? AND entity_id=?", (inv_id, eid)).fetchone()
@@ -58,11 +84,12 @@ def pay_invoice(con, eid, inv_id, date=None):
         raise ledger.LedgerError("Facture déjà réglée")
     date = date or dt.date.today().isoformat()
     if inv["kind"] == "sale":
-        lines = [{"account": "512", "debit": inv["ttc"]}, {"account": "411", "credit": inv["ttc"]}]
+        lines = [{"account": "512", "debit": inv["ttc"]}, {"account": tiers_account(inv), "credit": inv["ttc"]}]
     else:
-        lines = [{"account": "401", "debit": inv["ttc"]}, {"account": "512", "credit": inv["ttc"]}]
+        lines = [{"account": tiers_account(inv), "debit": inv["ttc"]}, {"account": "512", "credit": inv["ttc"]}]
     en = ledger.post_entry(con, eid, date, "BQ", f"Règlement {inv['number']} — {inv['party']}", lines, ref=inv["number"], source="invoice")
     con.execute("UPDATE invoices SET status='paid', pay_entry_id=? WHERE id=?", (en, inv_id))
+    letter_invoice(con, eid, inv_id, en)
     on_invoice_paid(con, eid, inv_id, date)
     return en
 
@@ -139,6 +166,9 @@ def close_year(con, eid, year, pme=True):
             ledger.post_entry(con, eid, e, "OD", f"Impôt sur les sociétés {year}",
                               [{"account": "695", "debit": isr["is"] * 100}, {"account": "44551", "credit": isr["is"] * 100}], source="closing")
         out["impot_societes"] = isr
+    if ent["kind"] == "entreprise":
+        from . import closing
+        out["determination_resultat"] = closing.close_result(con, eid, year)
     con.execute("UPDATE entities SET closed_until=? WHERE id=?", (e, eid))
     out["verrouille_jusqu_au"] = e
     return out

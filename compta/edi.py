@@ -16,8 +16,9 @@ Trois modes, réglables par dossier (onglet Paramètres) :
 import json, datetime as dt, urllib.request, urllib.error
 from . import db, ledger
 
-FORMS = {"tva": "3310-CA3", "is": "2572-SD", "liasse": "2065-SD + 2033-A à G", "dsn": "DSN mensuelle (NEODeS)"}
-REQUIRED = {"tva": ["lignes"], "is": ["2065"], "liasse": ["2033A_actif", "2033B", "2065"], "dsn": ["contenu"]}
+FORMS = {"tva": "3310-CA3", "ca12": "3517-S-SD (CA12)", "is": "2572-SD", "liasse": "2065-SD + 2033-A à G", "dsn": "DSN mensuelle (NEODeS)",
+         "ir": "2042 et annexes (EDI-IR, par un tiers déclarant habilité)"}
+REQUIRED = {"tva": ["lignes"], "ca12": ["lignes"], "is": ["2065"], "liasse": ["2033A_actif", "2033B", "2065"], "dsn": ["contenu"], "ir": ["formulaires"]}
 
 class EDIError(Exception):
     pass
@@ -38,7 +39,11 @@ def check(decl_type, data, siren):
     for k in REQUIRED.get(decl_type, []):
         if not data.get(k):
             errs.append(f"Champ obligatoire manquant : {k}")
-    if not (siren.isdigit() and len(siren) == 9):
+    if decl_type == "ir":
+        nf = str(data.get("numero_fiscal") or "").replace(" ", "")
+        if not (nf.isdigit() and len(nf) == 13):
+            errs.append("Numéro fiscal à 13 chiffres requis pour l'EDI-IR (à renseigner dans le profil).")
+    elif not (siren.isdigit() and len(siren) == 9):
         errs.append("SIREN absent ou invalide (renseignez le SIRET dans les paramètres du dossier).")
     return errs
 

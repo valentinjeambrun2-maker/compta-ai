@@ -22,6 +22,25 @@ Sans clé, un moteur de règles local prend le relais (aucune donnée ne quitte 
 
 Tests : `python3 -m unittest discover tests`
 
+## Nouveautés : comptabilité experte et IA spécialisée
+
+* **Entretien IA d'accueil** : à la création du dossier, l'IA pose les questions utiles (foyer, revenus, patrimoine, réductions — ou
+  forme juridique, TVA, social pour une entreprise). On peut répondre librement (« mariée, deux enfants nés en 2016 et 2021, salariée
+  à Lyon ») : l'IA remplit tout ce qu'elle comprend. Le profil sert chaque année et produit un calendrier fiscal personnalisé.
+* **Agent Impôts** : déclaration de revenus complète (2042, 2042-RICI, 2042-C-PRO, 2044, annexes 3916/2086) construite à partir du profil,
+  de la comptabilité et des justificatifs lus par l'IA (bulletin de décembre, IFU, attestations CESU/garde, reçus de dons, avis d'impôt).
+  Il calcule les parts, compare et applique les options favorables (frais réels, barème vs PFU, micro vs réel foncier, imposition commune
+  ou séparée), liste les pièces manquantes, contrôle la cohérence, estime le solde après prélèvement à la source, puis dépose (EDI-IR via
+  un tiers déclarant habilité) ou guide la saisie case par case.
+* **Centre des déclarations de l'entreprise** : TVA (CA3 mensuelle/trimestrielle ou CA12), IS, liasse, DSN — préparées et transmises en un clic.
+* **11 agents IA spécialisés** (expert-comptable, banque, ventes, dépenses, paie, TVA, fiscal, trésorerie, révision, analyse, impôts) :
+  analyses proactives sur chaque écran, chat expert, base de connaissances hors ligne.
+* **Comptabilité détaillée** : PCG complet (215 comptes), comptes auxiliaires clients/fournisseurs, lettrage automatique et manuel,
+  balance âgée et score de risque client, rapprochement bancaire, recherche d'écritures, extourne, pièces jointes, régularisations de
+  clôture (CCA, PCA, FNP, FAE, congés payés, provisions) suggérées par l'IA, détermination et affectation du résultat.
+* **TVA internationale** : intracommunautaire, export, autoliquidation (services UE, importation, BTP), CA12 et acomptes.
+* **Analyse** : soldes intermédiaires de gestion, CAF, 14 ratios commentés, seuil de rentabilité, trésorerie prévisionnelle 12 mois, budget.
+
 ## Fonctionnalités
 
 | Domaine | Ce que fait le logiciel |

@@ -63,6 +63,22 @@ CREATE TABLE IF NOT EXISTS memberships(
 CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, expires TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS audit_log(
   id INTEGER PRIMARY KEY, user_id INTEGER, entity_id INTEGER, action TEXT, detail TEXT, at TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS tiers(
+  id INTEGER PRIMARY KEY, entity_id INTEGER NOT NULL, type TEXT NOT NULL CHECK(type IN('client','fournisseur')), nom TEXT NOT NULL,
+  account TEXT NOT NULL, siren TEXT, tva_intra TEXT, pays TEXT DEFAULT 'FR', email TEXT, telephone TEXT, adresse TEXT,
+  delai_jours INTEGER DEFAULT 30, notes TEXT, UNIQUE(entity_id, account));
+CREATE TABLE IF NOT EXISTS attachments(
+  id INTEGER PRIMARY KEY, entity_id INTEGER NOT NULL, entry_id INTEGER, invoice_id INTEGER, name TEXT, mime TEXT, data BLOB,
+  created TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS bank_statements(
+  id INTEGER PRIMARY KEY, entity_id INTEGER NOT NULL, account TEXT DEFAULT '512', date TEXT NOT NULL, solde INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS profiles(
+  entity_id INTEGER PRIMARY KEY, data TEXT NOT NULL DEFAULT '{}', completed INTEGER DEFAULT 0, updated TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS tax_documents(
+  id INTEGER PRIMARY KEY, entity_id INTEGER NOT NULL, year INTEGER, kind TEXT, name TEXT, mime TEXT, data BLOB,
+  extracted TEXT, created TEXT DEFAULT CURRENT_TIMESTAMP);
+CREATE TABLE IF NOT EXISTS budgets(entity_id INTEGER NOT NULL, year INTEGER NOT NULL, account TEXT NOT NULL, month INTEGER NOT NULL,
+  amount INTEGER NOT NULL, PRIMARY KEY(entity_id, year, account, month));
 CREATE INDEX IF NOT EXISTS ix_entries ON entries(entity_id, date);
 CREATE INDEX IF NOT EXISTS ix_lines ON lines(entry_id, account);
 """
@@ -81,7 +97,10 @@ def connect(path=None):
 # Colonnes ajoutées après la v1 : appliquées aux bases existantes
 COLUMNS = {
     "entities": [("tva_exigibilite", "TEXT DEFAULT 'debits'"), ("email", "TEXT")],
-    "invoices": [("nature", "TEXT DEFAULT 'services'"), ("email", "TEXT"), ("quote_id", "INTEGER")],
+    "invoices": [("nature", "TEXT DEFAULT 'services'"), ("email", "TEXT"), ("quote_id", "INTEGER"), ("tiers_id", "INTEGER"),
+                 ("tiers_account", "TEXT"), ("operation", "TEXT DEFAULT 'france'")],
+    "lines": [("lettrage", "TEXT"), ("date_lettrage", "TEXT"), ("pointe", "INTEGER DEFAULT 0")],
+    "entries": [("piece_date", "TEXT"), ("created_by", "INTEGER"), ("reversal_of", "INTEGER")],
 }
 
 def migrate(con):
