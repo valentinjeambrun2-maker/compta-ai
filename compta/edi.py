@@ -107,6 +107,13 @@ def submit(con, eid, decl_type, period, data, declaration_id=None):
                 (eid, declaration_id, decl_type, cfg["mode"], res.get("ref"), res.get("status"), json.dumps(res, ensure_ascii=False)))
     return res
 
+def declaration_status(res, mode):
+    """Statut de la déclaration d'après la réponse du partenaire : accusé accepté (déposée, ou simulée en test),
+    reçu (transmise), sinon erreurs."""
+    if res.get("status") == "accepte":
+        return "simulee" if mode == "sandbox" else "deposee"
+    return {"recu": "transmise"}.get(res.get("status"), "erreurs")
+
 def refresh(con, eid, sub_id):
     s = con.execute("SELECT * FROM edi_submissions WHERE id=? AND entity_id=?", (sub_id, eid)).fetchone()
     if not s or not s["ref"]:
@@ -116,6 +123,9 @@ def refresh(con, eid, sub_id):
         raise EDIError("Aucun partenaire EDI configuré")
     res = conn.status(s["ref"])
     con.execute("UPDATE edi_submissions SET status=?, response=? WHERE id=?", (res.get("status"), json.dumps(res, ensure_ascii=False), sub_id))
+    if s["declaration_id"]:   # l'accusé de réception met aussi à jour la déclaration, qui restait « transmise »
+        con.execute("UPDATE declarations SET status=? WHERE id=? AND entity_id=?",
+                    (declaration_status(res, s["mode"]), s["declaration_id"], eid))
     return res
 
 def test_connection(con, eid):

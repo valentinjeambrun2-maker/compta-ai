@@ -25,8 +25,8 @@ Ce qu'un professionnel attend d'un logiciel de comptabilité et de déclarations
 | 5 | Mots de passe SMTP et jeton EDI stockés **en clair** en base. | Paramètres, Déclarations | `compta/db.py:117-123` | lu |
 | 6 | Le lecteur voit salaires, NIR et bulletins. | Paie, Paramètres | `server.py:360-362, 393` | lu |
 | 7 | La DSN part **toujours en test** : le réglage `edi_test` est ignoré, donc aucune DSN de production. | Paie | `server.py:408`, `compta/payroll.py:154` | lu |
-| 8 | « Voir » une déclaration insère une ligne « prête » ; le statut relit la dernière ligne. Une obligation déposée redevient « prête », avec risque de double dépôt. | Déclarations | `compta/filing.py:46-50`, `compta/obligations.py:9-11` | lu |
-| 9 | Les accusés de télédéclaration ne mettent pas à jour la déclaration : elle reste « transmise ». | Déclarations | `compta/edi.py:117-119` | lu |
+| 8 | « Voir » une déclaration insère une ligne « prête » ; le statut relit la dernière ligne. Une obligation déposée redevient « prête », avec risque de double dépôt. | Déclarations | `compta/filing.py:46-50`, `compta/obligations.py:9-11` | **vérifié** (test qui échoue sur l'ancien code) · **corrigé** |
+| 9 | Les accusés de télédéclaration ne mettent pas à jour la déclaration : elle reste « transmise ». | Déclarations | `compta/edi.py:117-119` | **vérifié** (test) · **corrigé** |
 | 10 | La liquidation de TVA datée du dernier jour de la période est relue dans la CA3, qui affiche alors 0 €. | TVA | `compta/tax.py:204-212`, `index.html:354` | **vérifié** (test qui échoue sur l'ancien code) · **corrigé** |
 | 11 | La liquidation partielle ne solde pas 4452, 445662 ni 44562, pourtant comptés dans la CA3. | TVA | `compta/tax.py:246-249` | **vérifié** · **corrigé** |
 | 12 | Le journal est limité à 500 écritures et la recherche à 300, sans avertissement. | Comptabilité | `compta/ledger.py:19,112` | lu |
@@ -131,7 +131,15 @@ Ordre du menu : chaque outil a une fiche (fonctionne, défauts, écarts, amélio
    - *Lignes de taux* : le taux 2,1 % et une ligne « autres taux » s'affichent, le détail totalise la TVA brute.
    - *Périodicité* : l'écran TVA propose mensuel ou trimestriel (période `AAAA-Tn`, comme les échéances).
    - Tests : `tests/test_tva.py` (9). Suite complète : 73 tests verts. Vérifié dans le navigateur : CA3 trimestrielle inchangée après liquidation, second passage refusé, immobilisation de 1 000 € HT avec 200 € au 44562.
-   - Non traité : affectation des lignes du CERFA pour l'autoliquidation (à contrôler avec le formulaire officiel), contrôle de cohérence et brouillon idempotent (itération Déclarations), bouton d'acompte du régime simplifié, report du crédit de TVA antérieur.
+   - Non traité : affectation des lignes du CERFA pour l'autoliquidation (à contrôler avec le formulaire officiel), bouton d'acompte du régime simplifié, report du crédit de TVA antérieur.
+6. **Déclarations** :
+   - *Une déclaration déposée n'est plus rouverte* : « Voir » n'insère plus de ligne « prête » (cause du retour à « à déclarer » et du risque de double dépôt). Une déclaration déposée ou transmise ne peut plus être retransmise. Un seul brouillon par type et période, mis à jour sur place ; dans les bases existantes avec doublons, la ligne déposée l'emporte.
+   - *Mode manuel* : bouton « Marquer comme déposée », dans le résultat et dans la liste. Les échéances ne restent plus « en retard » après dépôt, et le guide pas-à-pas n'est plus effacé au bout de 1,8 s.
+   - *Accusés EDI* : l'accusé de réception met aussi à jour la déclaration (déposée, simulée en test, ou en erreur).
+   - *Contrôles de cohérence* qui peuvent se déclencher : montants de TVA non négatifs, TVA nette égale à la collectée moins la déductible, liasse équilibrée. Les erreurs s'affichent à l'écran.
+   - *Confirmation* avant « Tout préparer et transmettre », avec le nombre de déclarations et un bilan.
+   - Tests : `tests/test_declarations.py` (11) ; 10 échouent sur l'ancien code. Suite complète : 84 tests verts. Vérifié dans le navigateur en mode manuel.
+   - Non traité : rappels par e-mail à J-7 et J-1, contrôles de cohérence pour la DSN, l'IS et la CA12.
 
 ## 5. Ordre proposé pour la suite
 
@@ -139,7 +147,7 @@ Un outil par itération, un commit et un push par outil. L'ordre suit le risque 
 
 1. **Comptabilité** : *fait* (voir §4, item 3). Restent `created_by` et les modèles d'écritures.
 2. **Impôts** : entreprise *fait* (voir §4, item 4). Reste côté particulier : foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant. La TVA est faite (voir §4, item 5).
-3. **Déclarations** : upsert par type et période, bouton « déposée », propagation des accusés.
+3. **Déclarations** : *fait* (voir §4, item 6). Restent les rappels J-7 et J-1.
 4. **Paramètres** : SMTP sans identifiants en clair, garde du dernier propriétaire, droits sur les salaires et NIR, journal d'audit réel.
 5. **Paie** : DSN liée à `edi_test`, CSG, mutuelle, prorata.
 6. **Factures et Devis** : mentions légales dans le PDF, avoirs, règlements partiels, relances fiables, lecture des factures électroniques reçues.

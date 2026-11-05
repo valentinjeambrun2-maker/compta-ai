@@ -39,23 +39,48 @@ def validate_decl(decl_type, data):
         if c.get("revenu_net_imposable", 0) < 0:
             errs.append("Revenu net imposable négatif.")
     if decl_type == "tva":
-        if data.get("a_payer", 0) and data.get("credit", 0):
+        a_payer, credit = data.get("a_payer", 0) or 0, data.get("credit", 0) or 0
+        if a_payer < 0 or credit < 0:
+            errs.append("Montant de TVA négatif.")
+        if a_payer and credit:
             errs.append("Montant à payer et crédit simultanés.")
+        if "collectee" in data and "deductible" in data and abs((data["collectee"] - data["deductible"]) - (a_payer - credit)) > 0.02:
+            errs.append("TVA nette incohérente : elle doit égaler la TVA collectée moins la TVA déductible.")
+    if decl_type == "liasse" and data.get("equilibre") is False:
+        errs.append("Bilan déséquilibré : la liasse ne peut pas être transmise.")
     return errs
 
+FINAL = ("deposee", "simulee", "transmise")
+
+def latest(con, eid, decl_type, period):
+    """Déclaration d'une période : une déclaration déposée l'emporte toujours sur un brouillon (bases avec doublons)."""
+    return con.execute("""SELECT id, status FROM declarations WHERE entity_id=? AND type=? AND period=?
+                          ORDER BY CASE WHEN status IN ('deposee','simulee','transmise') THEN 0 ELSE 1 END, id DESC LIMIT 1""",
+                       (eid, decl_type, period)).fetchone()
+
 def save_and_submit(con, eid, decl_type, period, data, submit=False):
+    """Un brouillon par type et période, mis à jour sur place. Une déclaration déposée n'est jamais rouverte ni
+    retransmise : la consulter renvoie son état sans rien enregistrer."""
+    prev = latest(con, eid, decl_type, period)
+    if prev and prev["status"] in FINAL:
+        if submit:
+            raise ledger.LedgerError("Cette déclaration est déjà déposée ou transmise : elle ne peut pas être retransmise.")
+        return {"id": prev["id"], "status": prev["status"], "erreurs": [], "guide": GUIDES.get(decl_type, []), "deja_depose": True}
     errs = validate_decl(decl_type, data)
     status = "erreurs" if errs else "prete"
-    did = con.execute("INSERT INTO declarations(entity_id,type,period,data,status) VALUES(?,?,?,?,?)",
-                      (eid, decl_type, period, json.dumps(data, ensure_ascii=False), status)).lastrowid
+    payload = json.dumps(data, ensure_ascii=False)
+    if prev:
+        did = prev["id"]
+        con.execute("UPDATE declarations SET data=?, status=? WHERE id=?", (payload, status, did))
+    else:
+        did = con.execute("INSERT INTO declarations(entity_id,type,period,data,status) VALUES(?,?,?,?,?)",
+                          (eid, decl_type, period, payload, status)).lastrowid
     out = {"id": did, "status": status, "erreurs": errs, "guide": GUIDES.get(decl_type, [])}
     if submit and not errs:
         res = edi.submit(con, eid, decl_type, period, data, did) if decl_type in edi.FORMS else None
         if res:
             out["edi"] = res
-            st = {"accepte": "deposee", "recu": "transmise"}.get(res.get("status"), "erreurs")
-            if res.get("status") == "accepte" and edi.config(con, eid)["mode"] == "sandbox":
-                st = "simulee"
+            st = edi.declaration_status(res, edi.config(con, eid)["mode"])
             con.execute("UPDATE declarations SET status=? WHERE id=?", (st, did))
             out["status"] = st
         else:

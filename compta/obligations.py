@@ -7,8 +7,8 @@ def _last(y, m):
     return f"{y}-{m:02d}-{calendar.monthrange(y, m)[1]:02d}"
 
 def _status(con, eid, typ, period):
-    r = con.execute("SELECT status FROM declarations WHERE entity_id=? AND type=? AND period=? ORDER BY id DESC LIMIT 1", (eid, typ, period)).fetchone()
-    return r[0] if r else "a_preparer"
+    r = filing.latest(con, eid, typ, period)   # une déclaration déposée l'emporte sur un brouillon plus récent
+    return r["status"] if r else "a_preparer"
 
 def listing(con, eid, year):
     ent = ledger.entity(con, eid)
@@ -17,8 +17,10 @@ def listing(con, eid, year):
     today = dt.date.today().isoformat()
     out = []
     def item(typ, label, period, start, end, due, montant=None):
+        d = filing.latest(con, eid, typ, period)
         out.append({"type": typ, "libelle": label, "periode": period, "debut": start, "fin": end, "echeance": due,
-                    "statut": _status(con, eid, typ, period), "exigible": end < today, "montant": montant})
+                    "statut": d["status"] if d else "a_preparer", "declaration_id": d["id"] if d else None,
+                    "exigible": end < today, "montant": montant})
     if per in ("reel_mensuel", "reel"):
         for m in range(1, 13):
             s, e = f"{year}-{m:02d}-01", _last(year, m)

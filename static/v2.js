@@ -259,23 +259,32 @@ async function declScreen(){
   const mode=s.settings.edi_mode||'off';
   $('#view').innerHTML=`<div class="card"><div class="row" style="justify-content:space-between"><div><h2 style="margin:0">Obligations ${YEAR}</h2>
     <p class="small muted">TVA : ${({reel_mensuel:'CA3 mensuelle',reel:'CA3 mensuelle',reel_trimestriel:'CA3 trimestrielle',rsi:'régime simplifié (CA12)',franchise:'franchise en base'})[o.periodicite_tva]||o.periodicite_tva} · Transmission : ${({off:'manuelle (guide)',sandbox:'simulation EDI (test)',http:'partenaire EDI'})[mode]}</p></div>
-    ${due.length?`<button class="b" onclick="declAll()">Tout préparer et transmettre (${due.length})</button>`:'<span class="tag ok">À jour</span>'}</div>
+    ${due.length?`<button class="b" onclick="declAll(${due.length})">Tout préparer et transmettre (${due.length})</button>`:'<span class="tag ok">À jour</span>'}</div>
     <div class="scroll"><table><tr><th>Échéance</th><th>Déclaration</th><th class="n">Montant</th><th>Statut</th><th></th></tr>
     ${o.obligations.map(x=>`<tr><td style="white-space:nowrap">${new Date(x.echeance).toLocaleDateString('fr-FR')}${x.en_retard?' <span class="tag bad">en retard</span>':''}</td><td>${esc(x.libelle)}</td><td class="n">${x.montant==null?'—':fmt(x.montant)}</td><td>${pill(x.statut)}</td>
-     <td class="row"><button class="g small" onclick="declOne('${x.type}','${x.periode}',false)">Voir</button>${x.exigible&&!['deposee','simulee','transmise'].includes(x.statut)?`<button class="g small wr" onclick="declOne('${x.type}','${x.periode}',true)">Déclarer</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Aucune obligation.</td></tr>'}</table></div><div id="declOut"></div></div>
+     <td class="row"><button class="g small" onclick="declOne('${x.type}','${x.periode}',false)">Voir</button>${x.exigible&&!['deposee','simulee','transmise'].includes(x.statut)?`<button class="g small wr" onclick="declOne('${x.type}','${x.periode}',true)">Déclarer</button>`:''}${x.statut=='prete'&&x.declaration_id?`<button class="g small wr" onclick="declFiled(${x.declaration_id})">Marquer déposée</button>`:''}</td></tr>`).join('')||'<tr><td colspan="5" class="muted">Aucune obligation.</td></tr>'}</table></div><div id="declOut"></div></div>
    ${mode=='off'?`<div class="al info">Pour une transmission entièrement automatique, configurez votre partenaire EDI dans <button class="lnk" onclick="go('set')">Paramètres</button> (ou activez la simulation pour tester).</div>`:''}
 `;
 }
-async function declAll(){ const r=await api('/api/obligations/run',{year:YEAR}); toast(`${r.length} déclaration(s) traitée(s)`); declScreen(); }
+async function declAll(n){
+  if(!confirm(`Préparer et transmettre ${n} déclaration(s) exigible(s) ? Celles qui sont déjà déposées ne sont pas retransmises.`)) return;
+  const r=await api('/api/obligations/run',{year:YEAR});
+  const err=r.filter(x=>(x.erreurs&&x.erreurs.length)||x.statut=='erreurs').length;
+  toast(`${r.length} déclaration(s) traitée(s)${err?`, dont ${err} en erreur`:''}`); declScreen(); }
+async function declFiled(id){ await api(`/api/declarations/${id}/filed`,{}); toast('Déclaration marquée comme déposée'); declScreen(); }
 async function declOne(type,periode,submit){
   const r=await api('/api/obligations/file',{year:YEAR,type,periode,submit}); const d=r.donnees;
   const lignes=d.lignes||d['2065']||null;
   $('#declOut').innerHTML=`<div class="card" style="margin-top:16px"><h3 style="margin-top:0">${esc(type.toUpperCase())} ${esc(periode)} — ${pill(r.status)}</h3>
+   ${r.deja_depose?`<div class="al info">Cette déclaration est déjà déposée : elle n'est pas rouverte.</div>`:''}
+   ${(r.erreurs||[]).length?`<div class="al critique"><div style="flex:1">${r.erreurs.map(esc).join('<br>')}</div></div>`:''}
    ${r.edi?`<div class="al ${r.edi.status=='accepte'?'ok':'critique'}">EDI (${esc(r.edi.ref||'—')}) : ${esc(r.edi.message||r.edi.status)}</div>`:''}${r.depot?`<div class="al attention">${esc(r.depot)}</div>`:''}
    ${lignes?`<table>${Object.entries(lignes).filter(([k,v])=>v&&v!='0').map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${typeof v=='number'?fmt(v):esc(String(v))}</td></tr>`).join('')}</table>`:''}
    ${d.contenu?`<pre style="max-height:200px;overflow:auto">${esc(d.contenu.slice(0,1500))}</pre>`:''}
-   ${(r.guide||[]).length?`<ol>${r.guide.map(g=>`<li>${esc(g)}</li>`).join('')}</ol>`:''}</div>`;
-  if(submit) setTimeout(declScreen, 1800);
+   ${(r.guide||[]).length?`<ol>${r.guide.map(g=>`<li>${esc(g)}</li>`).join('')}</ol>`:''}
+   ${r.status=='prete'&&r.id?`<p class="row"><button class="b wr" onclick="declFiled(${r.id})">Marquer comme déposée</button><span class="small muted">À faire une fois la déclaration saisie sur impots.gouv.fr.</span></p>`:''}</div>`;
+  // Le guide du mode manuel reste affiché : l'écran ne se recharge qu'une fois la déclaration réellement déposée.
+  if(submit && ['deposee','simulee','transmise'].includes(r.status)) setTimeout(declScreen, 1800);
 }
 
 // ---------------- Clients & fournisseurs, lettrage ----------------
