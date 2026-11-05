@@ -9,7 +9,8 @@ import json, os, re, urllib.request
 MODEL = os.environ.get("COMPTA_MODEL", "claude-opus-5-5")
 
 def enabled():
-    return bool(os.environ.get("ANTHROPIC_API_KEY"))
+    """Claude est actif si une clé est fournie, ou si un proxy injecte l'en-tête x-api-key (COMPTA_AI_PROXY=1)."""
+    return bool(os.environ.get("ANTHROPIC_API_KEY")) or os.environ.get("COMPTA_AI_PROXY") == "1"
 
 def llm(system, user, max_tokens=2000):
     """user : texte, ou liste de blocs de contenu (texte, image, document PDF)."""
@@ -18,7 +19,8 @@ def llm(system, user, max_tokens=2000):
     body = json.dumps({"model": MODEL, "max_tokens": max_tokens, "system": system,
                        "messages": [{"role": "user", "content": user}]}).encode()
     req = urllib.request.Request("https://api.anthropic.com/v1/messages", data=body, headers={
-        "x-api-key": os.environ["ANTHROPIC_API_KEY"], "anthropic-version": "2023-06-01", "content-type": "application/json"})
+        **({"x-api-key": os.environ["ANTHROPIC_API_KEY"]} if os.environ.get("ANTHROPIC_API_KEY") else {}),
+        "anthropic-version": "2023-06-01", "content-type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=90) as r:
             data = json.load(r)

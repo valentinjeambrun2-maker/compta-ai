@@ -19,6 +19,8 @@ python3 server.py
 ```
 
 Sans clé, un moteur de règles local prend le relais (aucune donnée ne quitte la machine).
+Derrière un proxy qui injecte lui-même l'en-tête `x-api-key` (secrets réseau d'un environnement cloud), lancez avec
+`COMPTA_AI_PROXY=1` : l'application active Claude sans jamais manipuler la clé.
 
 Tests : `python3 -m unittest discover tests`
 
