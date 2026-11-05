@@ -110,12 +110,18 @@ Ordre du menu : chaque outil a une fiche (fonctionne, défauts, écarts, amélio
    - *Doublons probables* : une opération au même montant qu'une écriture saisie à la main (±3 jours) reste en attente, confiance 0,3, et n'est jamais validée en lot.
    - *Encodage* : relevés en Windows-1252 lus correctement. Vérifié avec un relevé réel (accents conservés).
    - Tests : `tests/test_bank_memory.py` (7), suite complète verte (50).
+3. **Comptabilité** (commit de l'itération suivante) :
+   - *Suppression remplacée par une annulation* : une contre-passation datée du jour est passée ; l'écriture d'origine reste en base, reliée à son annulation. La ligne de relevé bancaire rattachée repasse à valider. Refusé si l'écriture est lettrée, liée à une facture, ou dans une période clôturée. L'action est tracée dans le journal d'audit.
+   - *Pas de limite silencieuse* : le journal et la recherche sont paginés (200 par page, « Afficher plus »), avec le total réel. Les exports restent complets.
+   - *Affichage* : une écriture annulée porte « annulée », sa contre-passation « contre-passation ». « Annuler » n'apparaît que lorsque l'action est possible ; « facture » et « lettrée » signalent les cas refusés.
+   - Non traité : identifiant de l'utilisateur sur chaque écriture (`created_by`), modèles d'écritures.
+   - Tests : `tests/test_comptabilite.py` (9). Vérifié dans le navigateur : annulation, refus sur facture, total et pagination.
 
 ## 5. Ordre proposé pour la suite
 
 Un outil par itération, un commit et un push par outil. L'ordre suit le risque pour le professionnel.
 
-1. **Comptabilité** : remplacer la suppression par une contre-passation tracée, et journaliser le contenu. Lever les limites de 300 et 500 lignes.
+1. **Comptabilité** : *fait* (voir §4, item 3). Restent `created_by` et les modèles d'écritures.
 2. **Impôts** : entreprise (IS au 444, liquidation TVA, SIREN, acomptes) et particulier (foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant).
 3. **Déclarations** : upsert par type et période, bouton « déposée », propagation des accusés.
 4. **Paramètres** : SMTP sans identifiants en clair, garde du dernier propriétaire, droits sur les salaires et NIR, journal d'audit réel.

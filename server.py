@@ -188,26 +188,28 @@ def add_account(c, eid, q, b):
     c.execute("INSERT INTO accounts(entity_id,code,label,tva_rate) VALUES(?,?,?,?)", (eid, b["code"], b["label"], float(b.get("tva_rate", 0))))
     return {"ok": True}
 
+def _page(q, default=200, maxi=1000):
+    """Pagination : `limit` (défaut 200, max 1000) et `offset`."""
+    return min(max(int(qv(q, "limit", default) or default), 1), maxi), max(int(qv(q, "offset", 0) or 0), 0)
+
 @route("GET", "/api/entries")
 def entries(c, eid, q, b):
-    return euroize(ledger.journal(c, eid, qv(q, "start"), qv(q, "end")))
+    lim, off = _page(q)
+    s, e = qv(q, "start"), qv(q, "end")
+    return euroize({"items": ledger.journal(c, eid, s, e, lim, off), "nombre": ledger.journal_total(c, eid, s, e),
+                    "limit": lim, "offset": off})
 
 @route("POST", "/api/entries", "ecriture")
 def post_entry(c, eid, q, b):
     lines = [{"account": l["account"], "debit": ledger.cents(l.get("debit") or 0), "credit": ledger.cents(l.get("credit") or 0)} for l in b["lines"]]
     return {"id": ledger.post_entry(c, eid, b["date"], b.get("journal", "OD"), b["label"], lines, b.get("ref"))}
 
-@route("POST", r"/api/entries/(\d+)/delete", "ecriture")
-def del_entry(c, eid, q, b, en):
-    row = c.execute("SELECT date FROM entries WHERE id=? AND entity_id=?", (en, eid)).fetchone()
-    ent = ledger.entity(c, eid)
-    if not row:
-        raise ledger.LedgerError("Écriture introuvable")
-    if ent["closed_until"] and row["date"] <= ent["closed_until"]:
-        raise ledger.LedgerError("Écriture d'une période clôturée : passez une écriture d'extourne")
-    c.execute("DELETE FROM entries WHERE id=?", (en,))
-    c.execute("UPDATE bank_tx SET status='pending', entry_id=NULL WHERE entry_id=?", (en,))
-    return {"ok": True}
+@route("POST", r"/api/entries/(\d+)/cancel", "ecriture")
+def cancel_entry(c, eid, q, b, en):
+    """Annulation par contre-passation : l'écriture n'est jamais effacée (piste d'audit)."""
+    nid = ledger.cancel_entry(c, eid, int(en))
+    auth.log(c, REQ.user["id"], eid, "annulation_ecriture", f"écriture {en} annulée par la contre-passation {nid}")
+    return {"ok": True, "contre_passation_id": nid}
 
 @route("GET", "/api/reports/(balance|bilan|resultat|grand-livre)")
 def reports(c, eid, q, b, kind):
@@ -567,7 +569,10 @@ def reverse(c, eid, q, b, en):
 
 @route("GET", "/api/search")
 def search_route(c, eid, q, b):
-    return euroize(ledger.search(c, eid, qv(q, "q"), qv(q, "account"), qv(q, "start"), qv(q, "end"), qv(q, "min"), qv(q, "max"), qv(q, "journal")))
+    lim, off = _page(q)
+    f = (qv(q, "q"), qv(q, "account"), qv(q, "start"), qv(q, "end"), qv(q, "min"), qv(q, "max"), qv(q, "journal"))
+    return euroize({"items": ledger.search(c, eid, *f, limit=lim, offset=off), "nombre": ledger.search_total(c, eid, *f),
+                    "limit": lim, "offset": off})
 
 @route("GET", "/api/regularisations/suggest")
 def regul_suggest(c, eid, q, b):

@@ -16,10 +16,14 @@ def cents(x):
     from decimal import Decimal, ROUND_HALF_UP
     return int((Decimal(s) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
-def search(con, eid, q=None, account=None, start=None, end=None, min_amount=None, max_amount=None, journal=None, limit=300):
-    """Recherche d'écritures (libellé, référence, compte, montant, période, journal)."""
+# Indicateurs affichés par le journal : annulée (et par quelle écriture), contre-passation, liée à une facture, lettrée.
+_FLAGS = ("(SELECT MIN(r.id) FROM entries r WHERE r.reversal_of=en.id) AS reversed_by, "
+          "(SELECT COUNT(*) FROM invoices i WHERE i.entity_id=en.entity_id AND (i.entry_id=en.id OR i.pay_entry_id=en.id)) AS facture, "
+          "(SELECT COUNT(*) FROM lines lt WHERE lt.entry_id=en.id AND lt.lettrage IS NOT NULL) AS lettree")
+
+def _search_sql(eid, q=None, account=None, start=None, end=None, min_amount=None, max_amount=None, journal=None):
     s, e = _period(start, end)
-    sql = ["SELECT DISTINCT en.* FROM entries en JOIN lines l ON l.entry_id=en.id WHERE en.entity_id=? AND en.date BETWEEN ? AND ?"]
+    sql = ["FROM entries en JOIN lines l ON l.entry_id=en.id WHERE en.entity_id=? AND en.date BETWEEN ? AND ?"]
     args = [eid, s, e]
     if q:
         sql.append("AND (en.label LIKE ? OR en.ref LIKE ? OR l.label LIKE ?)"); args += [f"%{q}%"] * 3
@@ -31,13 +35,23 @@ def search(con, eid, q=None, account=None, start=None, end=None, min_amount=None
         sql.append("AND (l.debit+l.credit)>=?"); args.append(cents(min_amount))
     if max_amount not in (None, ""):
         sql.append("AND (l.debit+l.credit)<=?"); args.append(cents(max_amount))
-    sql.append("ORDER BY en.date DESC, en.id DESC LIMIT ?"); args.append(limit)
+    return " ".join(sql), args
+
+def search(con, eid, q=None, account=None, start=None, end=None, min_amount=None, max_amount=None, journal=None, limit=300, offset=0):
+    """Recherche d'écritures (libellé, référence, compte, montant, période, journal), par pages."""
+    frm, args = _search_sql(eid, q, account, start, end, min_amount, max_amount, journal)
+    rows = con.execute(f"SELECT DISTINCT en.*, {_FLAGS} {frm} "
+                       "ORDER BY en.date DESC, en.id DESC LIMIT ? OFFSET ?", args + [limit, offset]).fetchall()
     out = []
-    for en in con.execute(" ".join(sql), args).fetchall():
+    for en in rows:
         ls = [dict(l) for l in con.execute("SELECT id,account,label,debit,credit,lettrage,pointe FROM lines WHERE entry_id=?", (en["id"],))]
         n = con.execute("SELECT COUNT(*) FROM attachments WHERE entry_id=?", (en["id"],)).fetchone()[0]
         out.append({**dict(en), "lines": ls, "pieces": n})
     return out
+
+def search_total(con, eid, q=None, account=None, start=None, end=None, min_amount=None, max_amount=None, journal=None):
+    frm, args = _search_sql(eid, q, account, start, end, min_amount, max_amount, journal)
+    return con.execute(f"SELECT COUNT(DISTINCT en.id) {frm}", args).fetchone()[0]
 
 def euros(c):
     return round((c or 0) / 100, 2)
@@ -109,13 +123,45 @@ def trial_balance(con, eid, start=None, end=None):
     rows = balances(con, eid, start, end)
     return {"rows": rows, "total_debit": sum(r["debit"] for r in rows), "total_credit": sum(r["credit"] for r in rows)}
 
-def journal(con, eid, start=None, end=None, limit=500):
+def _journal_sql(eid, start=None, end=None):
     s, e = _period(start, end)
+    return "FROM entries en WHERE en.entity_id=? AND en.date BETWEEN ? AND ?", [eid, s, e]
+
+def journal(con, eid, start=None, end=None, limit=500, offset=0):
+    """Écritures les plus récentes d'abord, par pages. limit=None : toutes (exports)."""
+    frm, args = _journal_sql(eid, start, end)
+    tail, extra = ("", []) if limit is None else (" LIMIT ? OFFSET ?", [limit, offset])
     out = []
-    for en in con.execute("SELECT * FROM entries WHERE entity_id=? AND date BETWEEN ? AND ? ORDER BY date DESC,id DESC LIMIT ?", (eid, s, e, limit)):
+    for en in con.execute(f"SELECT en.*, {_FLAGS} {frm} ORDER BY en.date DESC, en.id DESC{tail}", args + extra):
         ls = [dict(l) for l in con.execute("SELECT account,label,debit,credit FROM lines WHERE entry_id=?", (en["id"],))]
         out.append({**dict(en), "lines": ls})
     return out
+
+def journal_total(con, eid, start=None, end=None):
+    frm, args = _journal_sql(eid, start, end)
+    return con.execute(f"SELECT COUNT(*) {frm}", args).fetchone()[0]
+
+def cancel_entry(con, eid, entry_id, day=None):
+    """Annule une écriture par une contre-passation datée du jour. L'écriture reste en base, reliée à son annulation.
+    Refusé si l'écriture est déjà annulée, lettrée, liée à une facture, ou dans une période clôturée."""
+    en = con.execute("SELECT * FROM entries WHERE id=? AND entity_id=?", (entry_id, eid)).fetchone()
+    if not en:
+        raise LedgerError("Écriture introuvable")
+    if con.execute("SELECT 1 FROM entries WHERE reversal_of=?", (entry_id,)).fetchone():
+        raise LedgerError("Cette écriture est déjà annulée")
+    if con.execute("SELECT 1 FROM lines WHERE entry_id=? AND lettrage IS NOT NULL", (entry_id,)).fetchone():
+        raise LedgerError("Écriture lettrée : délettrez-la avant de l'annuler")
+    if con.execute("SELECT 1 FROM invoices WHERE entity_id=? AND (entry_id=? OR pay_entry_id=?)", (eid, entry_id, entry_id)).fetchone():
+        raise LedgerError("Écriture liée à une facture : annulez la facture ou son règlement depuis la facture")
+    lines = [{"account": l["account"], "debit": l["credit"], "credit": l["debit"], "rate": l["rate"],
+              "base": -l["base"] if l["base"] else None}
+             for l in con.execute("SELECT * FROM lines WHERE entry_id=?", (entry_id,))]
+    nid = post_entry(con, eid, day or dt.date.today().isoformat(), en["journal"], f"Annulation : {en['label']}", lines,
+                     ref=en["ref"], source="annulation")
+    con.execute("UPDATE entries SET reversal_of=? WHERE id=?", (entry_id, nid))
+    # Une opération de relevé rattachée à cette écriture redevient à valider.
+    con.execute("UPDATE bank_tx SET status='pending', entry_id=NULL WHERE entry_id=? AND entity_id=?", (entry_id, eid))
+    return nid
 
 def grand_livre(con, eid, account, start=None, end=None):
     s, e = _period(start, end)

@@ -318,19 +318,21 @@ function showMail(r,sel){toast(r.message);if(!r.sent&&r.subject)$(sel).innerHTML
 
 // ---------- Écritures ----------
 async function jrn(){
-  const list=await api(`/api/entries?start=${YEAR}-01-01&end=${YEAR}-12-31`);ACCS=await api('/api/accounts');
+  const page=await api(`/api/entries?start=${YEAR}-01-01&end=${YEAR}-12-31&limit=${window._jrnLimit||200}`);const list=page.items;ACCS=await api('/api/accounts');
   const opts=ACCS.map(x=>`<option value="${x.code}">${x.code} ${esc(x.label)}</option>`).join('');
   $('#view').innerHTML=`<div class="card"><h2>Saisie d'une écriture (opérations diverses)</h2><div class="form"><label>Date<input type="date" id="jD" value="${new Date().toISOString().slice(0,10)}"></label><label>Journal<select id="jJ"><option>OD</option><option>BQ</option><option>AC</option><option>VE</option><option>AN</option></select></label><label>Libellé<input id="jL"></label></div>
    <div id="jLines"></div><p class="row"><button class="g" onclick="jAdd()">+ Ligne</button><button class="b" onclick="jSave()">Enregistrer</button><span id="jBal" class="muted small"></span></p></div>
-  <div class="card"><h2>Journal ${YEAR} (${list.length} écritures)</h2><div class="scroll"><table><tr><th>Date</th><th>Jnl</th><th>Libellé</th><th>Compte</th><th class="n">Débit</th><th class="n">Crédit</th><th></th></tr>
-  ${list.map(e=>e.lines.map((l,i)=>`<tr${i?'':' style="border-top:2px solid var(--line)"'}><td>${i?'':e.date}</td><td>${i?'':e.journal}</td><td>${i?'':esc(e.label)}</td><td>${l.account}</td><td class="n">${l.debit?fmt(l.debit):''}</td><td class="n">${l.credit?fmt(l.credit):''}</td><td>${i?'':`<button class="g small" onclick="jDel(${e.id})">Suppr.</button>`}</td></tr>`).join('')).join('')}</table></div></div>`;
+  <div class="card"><h2>Journal ${YEAR} (${list.length} sur ${page.nombre} écritures)</h2><div class="scroll"><table><tr><th>Date</th><th>Jnl</th><th>Libellé</th><th>Compte</th><th class="n">Débit</th><th class="n">Crédit</th><th></th></tr>
+  ${list.map(e=>e.lines.map((l,i)=>`<tr${i?'':' style="border-top:2px solid var(--line)"'}><td>${i?'':e.date}</td><td>${i?'':e.journal}</td><td>${i?'':esc(e.label)}</td><td>${l.account}</td><td class="n">${l.debit?fmt(l.debit):''}</td><td class="n">${l.credit?fmt(l.credit):''}</td><td>${i?'':(e.reversed_by?'<span class="tag">annulée</span>':e.reversal_of?'<span class="tag">contre-passation</span>':e.facture?'<span class="tag" title="Écriture liée à une facture : à annuler depuis la facture">facture</span>':e.lettree?'<span class="tag" title="Écriture lettrée : délettrer avant annulation">lettrée</span>':`<button class="g small" onclick="jCancel(${e.id})">Annuler</button>`)}</td></tr>`).join('')).join('')}</table></div>${page.nombre>list.length?`<p><button class="g small" onclick="jMore()">Afficher plus (${page.nombre-list.length} restantes)</button></p>`:''}</div>`;
   window._opts=opts;jAdd();jAdd();
 }
 function jAdd(){$('#jLines').insertAdjacentHTML('beforeend',`<div class="form jl" style="margin-top:8px"><label>Compte<select class="jA">${window._opts}</select></label><label>Débit<input class="jDb" type="number" step="0.01" oninput="jBal()"></label><label>Crédit<input class="jCr" type="number" step="0.01" oninput="jBal()"></label></div>`)}
 function jBal(){let d=0,c=0;document.querySelectorAll('.jl').forEach(r=>{d+=+r.querySelector('.jDb').value||0;c+=+r.querySelector('.jCr').value||0});$('#jBal').textContent=`Débit ${fmt(d)} · Crédit ${fmt(c)} ${Math.abs(d-c)<.005&&d?'✓ équilibrée':'— non équilibrée'}`}
 async function jSave(){const lines=[...document.querySelectorAll('.jl')].map(r=>({account:r.querySelector('.jA').value,debit:r.querySelector('.jDb').value||0,credit:r.querySelector('.jCr').value||0})).filter(l=>+l.debit||+l.credit);
   await api('/api/entries',{date:$('#jD').value,journal:$('#jJ').value,label:$('#jL').value||'Écriture',lines});toast('Écriture enregistrée');jrn()}
-async function jDel(id){if(!confirm('Supprimer cette écriture ?'))return;await api(`/api/entries/${id}/delete`,{});toast('Écriture supprimée');jrn()}
+// Une écriture n'est jamais effacée : on la contre-passe (même montant en sens inverse, daté d'aujourd'hui).
+async function jCancel(id){if(!confirm('Annuler cette écriture ? Une contre-passation datée d\'aujourd\'hui sera passée. L\'écriture reste visible dans le journal.'))return;await api(`/api/entries/${id}/cancel`,{});toast('Écriture annulée par contre-passation');jrn()}
+function jMore(){window._jrnLimit=(window._jrnLimit||200)+200;jrn()}
 
 // ---------- États financiers ----------
 const tbl=(rows,cols)=>`<div class="scroll"><table><tr>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c[2]||''}">${c[2]=='n'?fmt(r[c[1]]):esc(r[c[1]])}</td>`).join('')}</tr>`).join('')}</table></div>`;
