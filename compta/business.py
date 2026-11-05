@@ -176,27 +176,27 @@ def audit(con, eid, year):
         add("attention", f"{n} opération(s) bancaire(s) en attente de validation.")
     att = ledger.solde(con, eid, "471")
     if att:
-        add("attention", f"Le compte d'attente 471 présente un solde de {E(att)} € : opérations à recatégoriser.")
+        add("attention", f"Le compte d'attente 471 présente un solde de {ledger.fr(att)} : opérations à recatégoriser.")
     bank = ledger.solde(con, eid, "512")
     if bank < 0:
-        add("attention", f"Solde bancaire comptable négatif ({E(bank)} €) : vérifier le rapprochement ou un découvert.")
+        add("attention", f"Solde bancaire comptable négatif ({ledger.fr(bank)}) : vérifier le rapprochement ou un découvert.")
     if ent["kind"] == "entreprise":
         for inv in con.execute("SELECT number,party,ttc,due FROM invoices WHERE entity_id=? AND kind='sale' AND status='open' AND due<?", (eid, today)):
-            add("attention", f"Facture {inv['number']} ({inv['party']}, {E(inv['ttc']):.2f} €) échue depuis le {inv['due']} : relancer le client.")
+            add("attention", f"Facture {inv['number']} ({inv['party']}, {ledger.fr(inv['ttc'])}) échue depuis le {inv['due']} : relancer le client.")
         nums = sorted(int(r[0].split("-")[-1]) for r in con.execute("SELECT number FROM invoices WHERE entity_id=? AND kind='sale' AND substr(date,1,4)=?", (eid, str(year))))
         if nums and nums != list(range(1, len(nums) + 1)):
             add("critique", "Rupture dans la numérotation des factures de vente (obligation de séquence continue).")
         resto = ledger.solde(con, eid, "6257", s, e)
         prod = -ledger.solde(con, eid, "7", s, e)
         if prod and resto > 0.05 * prod:
-            add("info", f"Frais de réception élevés ({E(resto)} €, > 5 % du CA) : conserver les justificatifs et le nom des invités.")
+            add("info", f"Frais de réception élevés ({ledger.fr(resto)}, > 5 % du CA) : conserver les justificatifs et le nom des invités.")
         ca = prod / 100
         if ent["tva_regime"] == "franchise" and ca > 37500:
-            add("critique", f"CA de {ca:.0f} € : seuil de franchise en base de TVA probablement dépassé — vérifier les seuils en vigueur.")
+            add("critique", f"CA de {ledger.fr(prod)} : seuil de franchise en base de TVA probablement dépassé — vérifier les seuils en vigueur.")
         big = con.execute("""SELECT e.label, l.debit FROM lines l JOIN entries e ON e.id=l.entry_id WHERE e.entity_id=? AND l.account LIKE '6%'
                              AND l.debit>50000 AND l.account IN ('606','628') AND e.date BETWEEN ? AND ?""", (eid, s, e)).fetchall()
         for r in big:
-            add("info", f"« {r['label']} » ({E(r['debit'])} € HT) en charge : s'il s'agit d'un bien durable > 500 € HT, l'immobiliser.")
+            add("info", f"« {r['label']} » ({ledger.fr(r['debit'])} HT) en charge : s'il s'agit d'un bien durable > 500 € HT, l'immobiliser.")
     if not alerts:
         add("ok", "Aucune anomalie détectée.")
     return alerts

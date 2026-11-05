@@ -19,6 +19,10 @@ def cents(x):
 def euros(c):
     return round((c or 0) / 100, 2)
 
+def fr(c):
+    """Centimes -> « 1 234,56 € »."""
+    return f"{(c or 0) / 100:,.2f}".replace(",", "\u202f").replace(".", ",") + " €"
+
 def _check_date(d):
     try:
         dt.date.fromisoformat(d)

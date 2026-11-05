@@ -145,14 +145,15 @@ def assistant(question, context):
     if ans:
         return {"answer": ans, "mode": "ia"}
     q = _strip(question)
+    m = lambda v: f"{float(v or 0):,.2f}".replace(",", "\u202f").replace(".", ",") + " €"
     c = context
     if "tva" in q:
         t = c.get("tva", {})
-        a = f"TVA collectée : {t.get('collectee')} €, déductible : {t.get('deductible')} €, solde à payer : {t.get('a_payer')} € (crédit : {t.get('credit')} €)."
+        a = f"TVA collectée : {m(t.get('collectee'))}, déductible : {m(t.get('deductible'))}. Solde à payer : {m(t.get('a_payer'))}" + (f" (crédit : {m(t.get('credit'))})" if t.get('credit') else "") + "."
     elif any(w in q for w in ("resultat", "benefice", "perte", "rentab")):
-        a = f"Résultat de l'exercice : {c.get('resultat')} € (produits {c.get('produits')} €, charges {c.get('charges')} €)."
+        a = f"Résultat de l'exercice : {m(c.get('resultat'))} (produits {m(c.get('produits'))}, charges {m(c.get('charges'))})."
     elif any(w in q for w in ("tresor", "banque", "solde", "argent")):
-        a = f"Trésorerie (comptes 512 + 530) : {c.get('tresorerie')} €."
+        a = f"Trésorerie (comptes 512 + 530) : {m(c.get('tresorerie'))}."
     elif any(w in q for w in ("impot", "is\b", "ir\b", "payer")):
         a = f"Estimation d'impôt : {c.get('impot_estime')}."
     else:

@@ -3,49 +3,117 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ComptaIA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#f6f7f9;--panel:#fff;--ink:#14171c;--muted:#5f6773;--line:#e3e6ea;--accent:#2f5bea;--accent-ink:#fff;--ok:#1f8a4c;--warn:#b26b00;--bad:#c62f2f;--soft:#eef2fd;--charge:#d9822b;--prod:#2f5bea}
-@media (prefers-color-scheme:dark){:root{--bg:#0f1115;--panel:#171a20;--ink:#e8eaed;--muted:#9aa2ad;--line:#2a2f37;--accent:#6f8ff5;--accent-ink:#0f1115;--ok:#4cc27e;--warn:#e0a446;--bad:#ef6b6b;--soft:#1d2433;--charge:#e59b52;--prod:#6f8ff5}}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
-header{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:12px 20px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
-header h1{font-size:17px;margin:0 12px 0 0}header h1 span{color:var(--accent)}
-.badge{font-size:12px;padding:2px 8px;border-radius:99px;background:var(--soft);color:var(--accent)}
-nav{display:flex;gap:2px;flex-wrap:wrap;padding:8px 16px;background:var(--panel);border-bottom:1px solid var(--line)}
-nav button{background:none;border:0;padding:8px 12px;border-radius:8px;color:var(--muted);cursor:pointer;font:inherit}
-nav button.on{background:var(--soft);color:var(--accent);font-weight:600}
-main{max-width:1200px;margin:0 auto;padding:20px 16px 60px}
-.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:16px}
-.card h2{font-size:15px;margin:0 0 12px}.card h3{font-size:14px;margin:14px 0 8px}
-.grid{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
-.kpi .v{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums}.kpi .l{color:var(--muted);font-size:12px}
-table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
-th{color:var(--muted);font-weight:500;font-size:12px}td.n,th.n{text-align:right}.scroll{overflow-x:auto}
-input,select,textarea{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:7px 9px;max-width:100%}
-textarea{width:100%;min-height:110px}label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
-.form{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));align-items:end}
-button.b{background:var(--accent);color:var(--accent-ink);border:0;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit;font-weight:600}
-button.g{background:none;color:var(--accent);border:1px solid var(--line);border-radius:8px;padding:6px 11px;cursor:pointer;font:inherit}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted)}.small{font-size:12px}
-.al{padding:8px 12px;border-radius:8px;margin:6px 0;border-left:3px solid}.al.critique{border-color:var(--bad);background:color-mix(in srgb,var(--bad) 8%,transparent)}
-.al.attention{border-color:var(--warn);background:color-mix(in srgb,var(--warn) 9%,transparent)}.al.info{border-color:var(--accent);background:var(--soft)}.al.ok{border-color:var(--ok);background:color-mix(in srgb,var(--ok) 9%,transparent)}
-.conf{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--line);vertical-align:middle;overflow:hidden}.conf i{display:block;height:100%}
-.chat{display:flex;flex-direction:column;gap:10px;max-height:460px;overflow:auto;margin-bottom:12px}
-.msg{padding:10px 12px;border-radius:10px;white-space:pre-wrap;max-width:85%}.msg.u{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}.msg.a{background:var(--soft)}
-#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:8px;display:none;z-index:9;max-width:90vw}
-.legend{display:flex;gap:14px;font-size:12px;color:var(--muted)}.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
-.hidden{display:none}ol li{margin:4px 0}
+/* Direction artistique : continuité The Herakles (pearl / ink / violet #4b3fd6 / halo) */
+:root{
+  --bg:#fff;--panel:#f5f5f7;--panel-2:#fff;--ink:#1d1d1f;--ink-2:#424245;--muted:#6e6e73;--muted-2:#86868b;
+  --line:#e8e8ed;--hair:#d2d2d7;--accent:#4b3fd6;--accent-hover:#3c31c2;--accent-ink:#fff;--link:#4b3fd6;--soft:#efedfd;
+  --ok:#1d7a46;--warn:#b25000;--bad:#c4001a;--prod:#4b3fd6;--charge:#3bc9f5;
+  --nav-bg:rgba(255,255,255,.8);--halo:linear-gradient(100deg,#7c5cff 0%,#e056c1 50%,#3bc9f5 100%);
+  --sans:Inter,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  --r-s:12px;--r:22px;--r-l:30px;--ease:cubic-bezier(.25,.1,.25,1);--shadow:0 2px 6px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000;--panel:#161617;--panel-2:#1d1d1f;--ink:#f5f5f7;--ink-2:#d2d2d7;--muted:#a1a1a6;--muted-2:#86868b;
+  --line:#2c2c2e;--hair:#424245;--link:#a99fff;--soft:#211d3d;--ok:#4cc27e;--warn:#f0a050;--bad:#ff6b6b;--prod:#8b7dff;--charge:#3bc9f5;
+  --nav-bg:rgba(22,22,23,.72);--shadow:0 2px 6px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5)}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.47 var(--sans);letter-spacing:-.011em;-webkit-font-smoothing:antialiased}
+::selection{background:var(--soft)}
+/* Barre globale translucide */
+header{position:sticky;top:0;z-index:20;height:52px;display:flex;align-items:center;gap:14px;padding:0 max(16px,calc((100vw - 1180px)/2));
+  background:var(--nav-bg);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:17px;letter-spacing:-.02em;margin-right:auto;white-space:nowrap}
+.brand .mark{width:26px;height:26px;border-radius:8px;background:var(--halo);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700;box-shadow:0 4px 12px rgba(124,92,255,.35)}
+.brand small{font-weight:400;color:var(--muted-2);font-size:12px;letter-spacing:0}
+header select{border:0;background:transparent;font-weight:500;font-size:14px;padding:6px 4px;cursor:pointer;max-width:240px}
+header select:focus{box-shadow:none}
+.chip{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--panel);color:var(--muted);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--muted-2)}.chip.on i{background:var(--ok)}
+/* Sous-navigation façon apple.com */
+nav{position:sticky;top:52px;z-index:15;background:var(--nav-bg);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);border-bottom:1px solid var(--line)}
+nav .in{max-width:1180px;margin:0 auto;padding:8px 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}nav .in::-webkit-scrollbar{display:none}
+nav button{flex:none;background:none;border:0;padding:7px 14px;border-radius:99px;color:var(--ink-2);cursor:pointer;font:inherit;font-size:13.5px;transition:background .2s var(--ease),color .2s}
+nav button:hover{background:var(--panel)}nav button.on{background:var(--ink);color:var(--bg);font-weight:500}
+main{max-width:1180px;margin:0 auto;padding:0 16px 120px;position:relative;overflow-x:clip}
+/* Hero de section */
+.hero{position:relative;padding:56px 0 32px}
+.hero::before{content:"";position:absolute;right:-6%;top:-10%;width:520px;height:340px;max-width:70vw;background:var(--halo);filter:blur(90px);opacity:.16;border-radius:50%;pointer-events:none;z-index:-1}
+.eyebrow{color:var(--muted);font-weight:600;font-size:14px;margin:0 0 10px;letter-spacing:-.005em}
+.hero h1{font-size:clamp(2.4rem,1.6rem + 3.2vw,4rem);line-height:1.04;letter-spacing:-.04em;font-weight:700;margin:0}
+.hero p.lead{font-size:clamp(1.1rem,1rem + .5vw,1.35rem);color:var(--muted);max-width:720px;margin:14px 0 0;letter-spacing:-.015em}
+/* Cartes */
+.card{background:var(--panel);border-radius:var(--r-l);padding:clamp(20px,3vw,32px);margin-bottom:20px}
+.card .card{background:var(--panel-2);border-radius:var(--r);box-shadow:var(--shadow)}
+.card h2{font-size:clamp(1.3rem,1.1rem + .7vw,1.7rem);letter-spacing:-.03em;font-weight:700;margin:0 0 16px;line-height:1.15}
+.card h3{font-size:17px;letter-spacing:-.02em;font-weight:600;margin:22px 0 10px}
+.card > .eb{color:var(--link);font-weight:500;font-size:14px;margin-bottom:6px}
+.grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.grid > .card{margin-bottom:0;min-width:0}
+.kpis{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+td:first-child{white-space:nowrap}
+input[type=file]{padding:6px;min-height:44px}input[type=file]::file-selector-button{font:inherit;font-size:14px;border:0;border-radius:999px;padding:7px 16px;margin-right:12px;background:var(--soft);color:var(--link);cursor:pointer}
+.grid + .card,.card + .grid{margin-top:20px}
+.kpi .l{color:var(--muted);font-size:13px;font-weight:500;margin-bottom:6px}
+.kpi .v{font-size:clamp(1.45rem,1.2rem + .8vw,1.85rem);white-space:nowrap;font-weight:700;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1.1}
+/* Tableaux */
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:11px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--muted-2);font-weight:500;font-size:12px;text-transform:none;letter-spacing:0}
+tr:last-child td{border-bottom:0}td.n,th.n{text-align:right}.scroll{overflow-x:auto;margin:0 -6px;padding:0 6px}
+/* Formulaires */
+input,select,textarea{font:inherit;font-size:15px;color:var(--ink);background:var(--panel-2);border:1px solid var(--hair);border-radius:var(--r-s);padding:10px 12px;max-width:100%;min-height:44px;transition:border-color .2s,box-shadow .2s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--soft)}
+textarea{width:100%;min-height:120px;resize:vertical}
+label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--muted)}
+.form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-items:end}
+/* Boutons pilule */
+button.b,button.g,a.g{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 22px;border-radius:999px;font:inherit;font-size:15px;cursor:pointer;text-decoration:none;transition:background .2s var(--ease),transform .15s var(--ease),border-color .2s}
+button.b{background:var(--accent);color:#fff;border:1px solid transparent;font-weight:500}
+button.b:hover{background:var(--accent-hover)}button.b:active,button.g:active{transform:scale(.97)}
+button.g,a.g{background:transparent;color:var(--link);border:1px solid var(--hair)}
+button.g:hover,a.g:hover{border-color:var(--link)}
+button.g.small{min-height:32px;padding:4px 12px;font-size:13px}
+.lnk{background:none;border:0;color:var(--link);font:inherit;cursor:pointer;padding:0}.lnk::after{content:" ›"}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted)}.small{font-size:13px}
+details summary{cursor:pointer;color:var(--link);margin-top:18px;list-style:none}details summary::before{content:"✦ "}
+details[open] summary{margin-bottom:10px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel-2);padding:2px 6px;border-radius:6px}
+pre{white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+/* Alertes */
+.al{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:16px;margin:8px 0;background:var(--panel-2);font-size:14.5px}
+.al::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;margin-top:7px;background:var(--muted-2)}
+.al.critique::before{background:var(--bad)}.al.attention::before{background:var(--warn)}.al.info::before{background:var(--accent)}.al.ok::before{background:var(--ok)}
+.card .card .al{background:var(--panel)}
+.conf{display:inline-block;width:44px;height:5px;border-radius:3px;background:var(--line);vertical-align:middle;overflow:hidden;margin-right:6px}.conf i{display:block;height:100%;border-radius:3px}
+/* Assistant */
+.chat{display:flex;flex-direction:column;gap:10px;max-height:480px;overflow:auto;margin-bottom:16px;padding:4px}
+.msg{padding:11px 16px;border-radius:20px;white-space:pre-wrap;max-width:80%;font-size:15px;line-height:1.45}
+.msg.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:6px}
+.msg.a{background:var(--panel-2);border-bottom-left-radius:6px;box-shadow:var(--shadow)}
+.fab{position:fixed;right:20px;bottom:20px;z-index:30;display:flex;align-items:center;gap:10px;padding:7px 18px 7px 7px;border-radius:999px;border:1px solid var(--line);
+  background:var(--nav-bg);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);box-shadow:var(--shadow);color:var(--ink);font:inherit;font-size:15px;cursor:pointer;transition:transform .2s var(--ease)}
+.fab:hover{transform:translateY(-2px)}.fab span{width:38px;height:38px;border-radius:50%;background:var(--halo);display:grid;place-items:center;color:#fff;font-size:17px;box-shadow:0 0 18px rgba(224,86,193,.45)}
+#toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:rgba(29,29,31,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#f5f5f7;padding:12px 20px;border-radius:999px;display:none;z-index:40;max-width:90vw;font-size:14px;box-shadow:var(--shadow)}
+.legend{display:flex;gap:18px;font-size:13px;color:var(--muted);margin-bottom:8px}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.hidden{display:none}ol{padding-left:20px}ol li{margin:6px 0}
+.big{font-size:clamp(2.2rem,1.6rem + 2vw,3.2rem)!important}
+@media (max-width:640px){.brand small,.chip,.brand .txt{display:none}header{gap:4px}header select{max-width:46vw;font-size:13px}header .lnk{font-size:13px}header .lnk::after{content:""}.kpis{grid-template-columns:1fr 1fr;gap:12px}.kpis .card{padding:16px;border-radius:22px}.kpi .v{font-size:1.25rem}.kpi .l{font-size:12px}.card{border-radius:24px}.hero{padding:36px 0 24px}.fab b{display:none}.fab{padding:7px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
 <body>
 <header>
-  <h1>Compta<span>IA</span></h1>
+  <div class="brand"><span class="mark">€</span><span class="txt">ComptaIA</span> <small>par The Herakles</small></div>
   <select id="ent" aria-label="Dossier"></select>
   <select id="year" aria-label="Exercice"></select>
-  <button class="g" onclick="newEntity()">+ Nouveau dossier</button>
-  <span id="iaBadge" class="badge"></span>
+  <button class="lnk small" onclick="newEntity()" style="white-space:nowrap" aria-label="Nouveau dossier">+ Dossier</button>
+  <span id="iaBadge" class="chip"></span>
 </header>
-<nav id="nav"></nav>
-<main id="view"></main>
+<nav><div class="in" id="nav"></div></nav>
+<main><section class="hero" id="hero"></section><div id="view"></div></main>
+<button class="fab" onclick="TAB='ai';render();scrollTo({top:0,behavior:'smooth'})" aria-label="Demander à l'IA"><span>✦</span><b style="font-weight:400">Demander à l'IA</b></button>
 <div id="toast"></div>
 <script>
 const $=s=>document.querySelector(s);
@@ -68,14 +136,15 @@ async function init(){
 }
 async function loadEnts(sel){
   ENTS=await api('/api/entities');
-  if(!ENTS.length){$('#view').innerHTML=`<div class="card"><h2>Bienvenue</h2><p>Créez votre premier dossier (entreprise ou particulier), ou relancez le serveur avec <code>--demo</code>.</p><button class="b" onclick="newEntity()">Créer un dossier</button></div>`;return}
+  if(!ENTS.length){$('#hero').innerHTML=`<p class="eyebrow">Bienvenue</p><h1>Votre compta.<br>Vos impôts.<br>Automatiquement.</h1><p class="lead">Entreprise ou particulier : importez vos relevés, l'IA s'occupe du reste.</p><p class="row" style="margin-top:28px"><button class="b" onclick="newEntity()">Créer mon dossier</button><span class="muted small">ou relancez avec <code>--demo</code></span></p>`;return}
   let saved;try{saved=localStorage.getItem('ent')}catch{}
   ENT=ENTS.find(e=>e.id==(sel||saved))||ENTS[0];
-  $('#ent').innerHTML=ENTS.map(e=>`<option value="${e.id}" ${e.id==ENT.id?'selected':''}>${esc(e.name)} — ${e.kind}</option>`).join('');
+  $('#ent').innerHTML=ENTS.map(e=>`<option value="${e.id}" ${e.id==ENT.id?'selected':''}>${esc(e.name)}</option>`).join('');
   render();
 }
 async function newEntity(){
-  $('#view').innerHTML=`<div class="card"><h2>Nouveau dossier</h2><div class="form">
+  $('#nav').innerHTML='';$('#hero').innerHTML=`<p class="eyebrow">Nouveau dossier</p><h1>Commençons.</h1><p class="lead">Le plan comptable adapté est installé automatiquement.</p>`;
+  $('#view').innerHTML=`<div class="card"><h2>Votre dossier</h2><div class="form">
   <label>Nom<input id="nName" placeholder="Ma société / Mon foyer"></label>
   <label>Type<select id="nKind" onchange="document.getElementById('entOpts').classList.toggle('hidden',this.value!='entreprise')"><option value="entreprise">Entreprise</option><option value="particulier">Particulier</option></select></label></div>
   <div id="entOpts" class="form" style="margin-top:10px">
@@ -87,31 +156,43 @@ async function createEnt(){
   const k=$('#nKind').value;const r=await api('/api/entities',{name:$('#nName').value||'Nouveau dossier',kind:k,legal_form:k=='entreprise'?$('#nForm').value:null,tva_regime:k=='entreprise'?$('#nTva').value:'aucune',siret:$('#nSiret').value,address:$('#nAddr').value});
   toast('Dossier créé, plan comptable installé');loadEnts(r.id)}
 
-function render(){
+const HERO={dash:['Tableau de bord.','Vos chiffres clés, à jour à chaque opération.'],
+ bank:['Banque & IA.','Importez un relevé. L\'IA classe, ventile la TVA et lettre vos factures.'],
+ inv:['Factures.','Numérotation légale, mentions obligatoires, PDF en un clic.'],
+ jrn:['Écritures.','La partie double, sans effort. Toujours équilibrée.'],
+ rep:['États financiers.','Compte de résultat, bilan et balance. En temps réel.'],
+ tva:['TVA.','Votre CA3, calculée ligne par ligne.'],
+ tax:['Impôts.','Votre déclaration, pré-remplie par l\'IA.'],
+ ai:['Demandez. Tout simplement.','Un assistant comptable et fiscal qui connaît votre dossier.'],
+ close:['Clôture & exports.','Amortissements, impôt, verrouillage et FEC. En une fois.']};
+function setHero(){const [t,l]=HERO[TAB];const P=ENT.kind=='particulier';
+  const title={rep:P?'Budget.':t,tax:P?'Vos impôts. Pré-remplis.':t,close:P?'Exports.':t}[TAB]||t;
+  $('#hero').innerHTML=`<p class="eyebrow">${esc(ENT.name)} · ${YEAR}</p><h1>${title}</h1><p class="lead">${l}</p>`}
+function render(){setHero();document.querySelector('.fab').style.display=TAB=='ai'?'none':'';
   $('#nav').innerHTML=TABS[ENT.kind].map(([k,l])=>`<button class="${k==TAB?'on':''}" onclick="TAB='${k}';render()">${l}</button>`).join('');
-  $('#view').innerHTML='<p class="muted">Chargement…</p>';
+  $('#view').innerHTML='';
   ({dash,bank,inv,jrn,rep,tva,tax,ai:assistant,close})[TAB]().catch(e=>console.error(e));
 }
 
 // ---------- Tableau de bord ----------
 async function dash(){
   const d=await api(`/api/dashboard?year=${YEAR}`);const c=d.context;
-  $('#iaBadge').textContent=d.ia?'IA : Claude connecté':'IA : règles locales';
-  const max=Math.max(1,...d.mois.flatMap(m=>[m.produits,m.charges]));const W=640,H=180,bw=W/12;
+  $('#iaBadge').className='chip'+(d.ia?' on':'');$('#iaBadge').innerHTML=`<i></i>${d.ia?'Claude connecté':'IA locale'}`;
+  const max=Math.max(1,...d.mois.flatMap(m=>[m.produits,m.charges]));const W=1080,H=220,bw=W/12;
   const bars=d.mois.map((m,i)=>{const hp=m.produits/max*(H-20),hc=m.charges/max*(H-20);
-    return `<rect x="${i*bw+6}" y="${H-hp}" width="${bw/2-7}" height="${hp}" rx="2" fill="var(--prod)"><title>${fmt(m.produits)}</title></rect>
-    <rect x="${i*bw+bw/2}" y="${H-hc}" width="${bw/2-7}" height="${hc}" rx="2" fill="var(--charge)"><title>${fmt(m.charges)}</title></rect>
-    <text x="${i*bw+bw/2}" y="${H+14}" font-size="11" text-anchor="middle" fill="var(--muted)">${'JFMAMJJASOND'[i]}</text>`}).join('');
+    return `<rect x="${i*bw+bw/2-26}" y="${H-hp}" width="24" height="${hp}" rx="6" fill="var(--prod)"><title>${fmt(m.produits)}</title></rect>
+    <rect x="${i*bw+bw/2+2}" y="${H-hc}" width="24" height="${hc}" rx="6" fill="var(--charge)"><title>${fmt(m.charges)}</title></rect>
+    <text x="${i*bw+bw/2}" y="${H+18}" font-size="13" text-anchor="middle" fill="var(--muted)">${'JFMAMJJASOND'[i]}</text>`}).join('');
   const isP=ENT.kind=='particulier';
-  $('#view').innerHTML=`<div class="grid">
+  $('#view').innerHTML=`<div class="grid kpis">
    <div class="card kpi"><div class="l">${isP?'Revenus':'Produits'} ${YEAR}</div><div class="v">${fmt(c.produits)}</div></div>
    <div class="card kpi"><div class="l">${isP?'Dépenses':'Charges'} ${YEAR}</div><div class="v">${fmt(c.charges)}</div></div>
    <div class="card kpi"><div class="l">${isP?'Épargne nette':'Résultat'}</div><div class="v" style="color:${c.resultat<0?'var(--bad)':'var(--ok)'}">${fmt(c.resultat)}</div></div>
    <div class="card kpi"><div class="l">Trésorerie</div><div class="v">${fmt(c.tresorerie)}</div></div>
    ${c.tva?`<div class="card kpi"><div class="l">TVA nette ${YEAR}</div><div class="v">${fmt(c.tva.a_payer||-c.tva.credit)}</div></div>`:''}
-   <div class="card kpi"><div class="l">Impôt estimé</div><div class="v" style="font-size:15px">${esc(c.impot_estime)}</div></div></div>
+   <div class="card kpi"><div class="l">Impôt estimé</div><div class="v" style="font-size:17px;white-space:normal;letter-spacing:-.02em">${esc(c.impot_estime)}</div></div></div>
   <div class="card"><h2>Évolution mensuelle</h2><div class="legend"><span><i style="background:var(--prod)"></i>${isP?'Revenus':'Produits'}</span><span><i style="background:var(--charge)"></i>${isP?'Dépenses':'Charges'}</span></div>
-   <svg viewBox="0 0 ${W} ${H+20}" style="width:100%;height:auto;max-height:260px">${bars}</svg></div>
+   <svg viewBox="0 0 ${W} ${H+24}" style="width:100%;height:auto;display:block">${bars}</svg></div>
   <div class="card"><h2>Revue automatique (audit IA)</h2>${d.alertes.map(a=>`<div class="al ${a.niveau}">${esc(a.message)}</div>`).join('')}</div>`;
 }
 
@@ -130,7 +211,7 @@ async function bank(){
    <div class="scroll"><table><tr><th>Date</th><th>Libellé</th><th class="n">Montant</th><th>Compte proposé</th>${ENT.kind=='entreprise'?'<th>TVA %</th>':''}<th>Confiance</th><th></th></tr>
    ${tx.map(t=>`<tr><td>${t.date}</td><td>${esc(t.label)}<div class="small muted">${esc(t.reason||'')}</div></td><td class="n" style="color:${t.amount<0?'var(--bad)':'var(--ok)'}">${fmt(t.amount)}</td>
    <td>${st=='pending'?`<select id="a${t.id}" style="max-width:240px">${opts(t.account)}</select>`:esc(t.account)}</td>${ENT.kind=='entreprise'?`<td>${st=='pending'?tvaSel(t.id,t.tva_rate):t.tva_rate}</td>`:''}
-   <td><span class="conf"><i style="width:${(t.confidence||0)*100}%;background:${t.confidence>=.8?'var(--ok)':t.confidence>=.5?'var(--warn)':'var(--bad)'}"></i></span> ${Math.round((t.confidence||0)*100)} %</td>
+   <td style="white-space:nowrap"><span class="conf"><i style="width:${(t.confidence||0)*100}%;background:${t.confidence>=.8?'var(--ok)':t.confidence>=.5?'var(--warn)':'var(--bad)'}"></i></span> ${Math.round((t.confidence||0)*100)} %</td>
    <td>${st=='pending'?`<button class="g" onclick="val(${t.id})">Valider</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucune opération.</td></tr>'}</table></div></div>`;
 }
 async function importCsv(){const f=$('#csvf').files[0];if(!f)return toast('Choisissez un fichier');const r=await api('/api/bank/import',{csv:await f.text()});toast(`${r.imported} opération(s) importée(s), ${r.duplicates} doublon(s) ignoré(s)`);bank()}
