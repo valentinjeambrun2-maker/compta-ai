@@ -2,10 +2,10 @@
 // tiers & lettrage, comptabilité détaillée, analyse, révision.
 'use strict';
 TABS = {
-  entreprise: [['dash','Accueil'],['bank','Banque'],['inv','Factures'],['quotes','Devis'],['tiers','Clients & fournisseurs'],['ndf','Notes de frais'],
+  entreprise: [['dash','Tableau de bord'],['bank','Banque & IA'],['inv','Factures'],['quotes','Devis'],['tiers','Clients & fournisseurs'],['ndf','Notes de frais'],
     ['pay','Paie'],['compta','Comptabilité'],['rep','États financiers'],['analyse','Analyse & trésorerie'],['decl','Déclarations'],
-    ['tax','Impôts & liasse'],['close','Clôture'],['profil','Profil'],['ai','Agents IA'],['set','Paramètres']],
-  particulier: [['dash','Accueil'],['impots','Mes impôts'],['bank','Banque'],['rep','Budget'],['profil','Mon profil'],['ai','Agents IA'],['close','Exports'],['set','Paramètres']]
+    ['tax','Impôts & liasse'],['tva','TVA'],['close','Clôture'],['profil','Profil'],['ai','Agents IA'],['set','Paramètres']],
+  particulier: [['dash','Tableau de bord'],['impots','Mes impôts'],['bank','Banque'],['rep','Budget'],['profil','Mon profil'],['ai','Agents IA'],['close','Exports'],['set','Paramètres']]
 };
 Object.assign(HERO, {
   dash: ['Bonjour.', 'Voici ce qui demande votre attention aujourd\'hui.'],
@@ -17,19 +17,93 @@ Object.assign(HERO, {
   close: ['Clôture.', 'Régularisations, amortissements, résultat et exports.'],
   profil: ['Faisons connaissance.', 'Quelques questions, une seule fois. L\'IA s\'en sert pour toutes vos déclarations.'],
   impots: ['Vos impôts. Faits pour vous.', 'L\'Agent Impôts prépare votre déclaration complète et choisit les options les plus avantageuses.'],
+  hub: ['Bonjour.', 'Tous vos outils, en un clic. Choisissez celui dont vous avez besoin.'],
   ai: ['Vos experts IA.', 'Un spécialiste pour chaque sujet, qui connaît votre dossier.']
 });
-const SCREENS = () => ({dash: home, bank, inv, quotes, tiers: tiersScreen, ndf, pay, compta: comptaScreen, rep, analyse: analyseScreen,
+const SCREENS = () => ({hub: hubScreen, dash: home, bank, inv, quotes, tiers: tiersScreen, ndf, pay, compta: comptaScreen, rep, analyse: analyseScreen,
   decl: declScreen, tax, close: closeScreen, profil: onboarding, impots: impotsScreen, ai: agentsScreen, set: settings, jrn, tva});
+
+// ---------------- Accueil : tous les outils ----------------
+// Icônes SVG en trait (24×24), dessinées pour ComptaIA : pas de bibliothèque externe.
+const ICO = {
+  grid:'<rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="5" rx="2"/><rect x="13" y="12" width="8" height="9" rx="2"/><rect x="3" y="15" width="8" height="6" rx="2"/>',
+  bank:'<path d="M3 10h18"/><path d="M5 10v8M9.5 10v8M14.5 10v8M19 10v8"/><path d="M3 18.5h18"/><path d="M12 3.5 21 8H3z"/>',
+  invoice:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 15.5h6M9 19h3"/>',
+  quote:'<path d="M6 3h8l4 4v14H6z"/><path d="M14 3v4h4"/><path d="m9 14 2 2 4-4"/>',
+  receipt:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2z"/><path d="M9 8h6M9 12h6"/>',
+  people:'<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c.6-3.4 3.2-5.5 6.5-5.5s5.9 2.1 6.5 5.5"/><circle cx="17" cy="9" r="2.5"/><path d="M16.5 14.6c2.6.2 4.4 2.1 5 5"/>',
+  payroll:'<rect x="3" y="6" width="18" height="13" rx="2.5"/><circle cx="12" cy="12.5" r="2.5"/><path d="M6.5 12.5h.01M17.5 12.5h.01"/>',
+  book:'<path d="M5 4.5A2.5 2.5 0 0 1 7.5 2H20v17H7.5A2.5 2.5 0 0 0 5 21.5z"/><path d="M5 21.5V4.5"/><path d="M9 7h7"/>',
+  percent:'<path d="M19 5 5 19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>',
+  send:'<path d="M22 2 11 13"/><path d="M22 2l-7 20-4-9-9-4z"/>',
+  landmark:'<path d="M3 21h18"/><path d="M5 21V10M9.5 21V10M14.5 21V10M19 21V10"/><path d="M2.5 9 12 3l9.5 6z"/>',
+  chart:'<path d="M4 20V4"/><path d="M4 20h16"/><path d="M8 16v-4M12 16V8M16 16v-6"/>',
+  trend:'<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  lock:'<rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V7.5a4 4 0 0 1 8 0V11"/>',
+  sparkle:'<path d="M12 3.5 13.7 9 19 10.5 13.7 12 12 17.5 10.3 12 5 10.5 10.3 9z"/><path d="M18.5 16.5 19.2 18.3 21 19l-1.8.7-.7 1.8-.7-1.8L16 19l1.8-.7z"/>',
+  user:'<circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/>',
+  gear:'<circle cx="12" cy="12" r="3"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
+  pie:'<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M15 3.6A9 9 0 0 1 20.4 9H15z"/>',
+  download:'<path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17.5V20h16v-2.5"/>'
+};
+const svgIco = (n) => `<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICO[n]}</svg>`;
+// [onglet, nom, description, icône, couleur] — groupés pour la page d'accueil.
+const TOOLS = {
+  entreprise: [
+    {g:'Au quotidien', t:[
+      ['bank','Banque & IA','Importez vos relevés : l\'IA classe, ventile la TVA et rapproche vos factures.','bank','#2563eb'],
+      ['inv','Factures','Factures numérotées, mentions légales, PDF et relances.','invoice','#0d9488'],
+      ['quotes','Devis','Du devis à la facture en un clic.','quote','#7c3aed'],
+      ['ndf','Notes de frais','Photographiez un ticket : l\'IA lit le montant et la TVA.','receipt','#d97706'],
+      ['tiers','Clients & fournisseurs','Comptes tiers, lettrage, balance âgée et risque client.','people','#0891b2'],
+      ['pay','Paie','Bulletins, charges sociales, prélèvement à la source et DSN.','payroll','#db2777']]},
+    {g:'Comptabilité & obligations', t:[
+      ['compta','Comptabilité','Écritures, grand livre, recherche et rapprochement.','book','#4f46e5'],
+      ['tva','TVA','Votre CA3 calculé ligne par ligne.','percent','#16a34a'],
+      ['decl','Déclarations','Toutes vos échéances, préparées et transmises.','send','#0284c7'],
+      ['tax','Impôts & liasse','IS, liasse fiscale et impôt du dirigeant.','landmark','#9333ea'],
+      ['rep','États financiers','Bilan, compte de résultat et balance.','chart','#65a30d'],
+      ['close','Clôture & exports','Régularisations, amortissements, verrouillage, FEC, PDF et Excel.','lock','#64748b']]},
+    {g:'Pilotage', t:[
+      ['dash','Tableau de bord','Ce qui demande votre attention et vos chiffres clés.','grid','#1d4ed8'],
+      ['analyse','Analyse & trésorerie','Soldes de gestion, ratios et prévisions de trésorerie.','trend','#ea580c']]},
+    {g:'Assistance & réglages', t:[
+      ['ai','Agents IA','Un expert par sujet, qui connaît votre dossier.','sparkle','#7c3aed'],
+      ['profil','Profil','Quelques questions pour pré-remplir toutes vos déclarations.','user','#0f766e'],
+      ['set','Paramètres','Dossier, TVA, e-mail, télédéclaration et membres.','gear','#475569']]}
+  ],
+  particulier: [
+    {g:'Pilotage', t:[
+      ['dash','Tableau de bord','Ce qui demande votre attention et vos chiffres clés.','grid','#1d4ed8']]},
+    {g:'Mes finances', t:[
+      ['impots','Mes impôts','Votre déclaration de revenus, préparée et optimisée par l\'Agent Impôts.','landmark','#9333ea'],
+      ['bank','Banque & IA','Relevés importés et catégorisés automatiquement.','bank','#2563eb'],
+      ['rep','Budget','Revenus, dépenses et épargne sur l\'année.','pie','#65a30d'],
+      ['close','Exports','PDF, Excel et justificatifs.','download','#64748b']]},
+    {g:'Assistance & réglages', t:[
+      ['ai','Agents IA','Un expert par sujet, qui connaît votre dossier.','sparkle','#7c3aed'],
+      ['profil','Mon profil','Quelques questions, une seule fois, pour toutes vos déclarations.','user','#0f766e'],
+      ['set','Paramètres','Dossier, membres et réglages.','gear','#475569']]}
+  ]
+};
+function hubScreen(){
+  const groups = TOOLS[ENT.kind=='particulier' ? 'particulier' : 'entreprise'];
+  $('#view').innerHTML = `<div class="hub">${groups.map(g=>`<section class="hub-g"><h2 class="hub-h">${esc(g.g)}</h2><div class="hub-grid">${g.t.map(([k,n,d,ic,c])=>
+    `<button class="tool" style="--c:${c}" onclick="go('${k}')"><span class="tool-ico">${svgIco(ic)}</span><span class="tool-t"><b>${esc(n)}</b><span class="small muted">${esc(d)}</span></span></button>`).join('')}</div></section>`).join('')}</div>`;
+}
 
 function render(){
   document.body.classList.toggle('ro', ROLE=='lecteur');
-  if(!TABS[ENT.kind].some(t=>t[0]==TAB)) TAB='dash';
-  setHero(); document.querySelector('.fab').style.display = ['ai','profil'].includes(TAB) ? 'none' : '';
-  $('#nav').innerHTML = TABS[ENT.kind].map(([k,l])=>`<button class="${k==TAB?'on':''}" onclick="go('${k}')">${l}</button>`).join('');
+  if(!TABS[ENT.kind].some(t=>t[0]==TAB) && TAB!='hub') TAB='hub';
+  setHero();
+  document.querySelector('.fab').style.display = ['ai','profil'].includes(TAB) ? 'none' : '';
+  // Navigation simplifiée : l'accueil liste tous les outils ; un outil n'affiche qu'un retour et son nom.
+  const cur = TABS[ENT.kind].find(t=>t[0]==TAB);
+  $('nav').style.display = TAB=='hub' ? 'none' : '';
+  $('#nav').innerHTML = TAB=='hub' ? '' : `<button onclick="go('hub')">← Tous les outils</button><span class="navlabel">${esc(cur ? cur[1] : '')}</span>`;
   $('#view').innerHTML=''; $('#agent').innerHTML='';
   const fn = SCREENS()[TAB];
-  Promise.resolve(fn()).then(()=>{ if(!['ai','profil','set','dash'].includes(TAB)) agentPanel(); }).catch(e=>console.error(e));
+  Promise.resolve(fn()).then(()=>{ if(!['ai','profil','set','dash','hub'].includes(TAB)) agentPanel(); }).catch(e=>console.error(e));
 }
 function go(t){ TAB=t; render(); scrollTo({top:0,behavior:'smooth'}); }
 const seg = (id, items, cur, cb) => `<div class="seg" id="${id}">${items.map(([k,l])=>`<button class="${k==cur?'on':''}" onclick="${cb}('${k}')">${l}</button>`).join('')}</div>`;

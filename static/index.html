@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ComptaIA</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><rect width='24' height='24' rx='6' fill='%237c5cff'/><text x='12' y='17' font-size='15' text-anchor='middle' fill='white' font-family='Arial'>€</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -108,7 +109,19 @@ body.ro button.b:not(.calc),body.ro .wr{display:none!important}
 .tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:99px;background:var(--panel-2);color:var(--muted)}.tag.ok{color:var(--ok)}.tag.bad{color:var(--bad)}.tag.warn{color:var(--warn)}.tag.acc{color:var(--link);background:var(--soft)}
 .seg{display:inline-flex;background:var(--panel-2);border-radius:99px;padding:3px;gap:2px;margin-bottom:18px}.seg button{border:0;background:none;padding:7px 16px;border-radius:99px;font:inherit;font-size:14px;color:var(--ink-2);cursor:pointer}.seg button.on{background:var(--ink);color:var(--bg)}
 .big{font-size:clamp(2.2rem,1.6rem + 2vw,3.2rem)!important}
-@media (max-width:640px){.brand small,.chip,.brand .txt{display:none}header{gap:4px}header select{max-width:46vw;font-size:13px}header .lnk{font-size:13px}header .lnk::after{content:""}.kpis{grid-template-columns:1fr 1fr;gap:12px}.kpis .card{padding:16px;border-radius:22px}.kpi .v{font-size:1.25rem}.kpi .l{font-size:12px}.card{border-radius:24px}.hero{padding:36px 0 24px}.fab b{display:none}.fab{padding:7px}}
+/* Accueil : tous les outils */
+.hub{display:flex;flex-direction:column;gap:30px;margin-bottom:40px}
+.hub-h{font-size:12.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 12px}
+.hub-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px}
+.tool{display:flex;gap:14px;align-items:flex-start;text-align:left;background:var(--panel-2);border:1px solid var(--line);border-radius:20px;padding:18px;cursor:pointer;color:var(--ink);font:inherit;box-shadow:var(--shadow);transition:transform .2s var(--ease),border-color .2s}
+.tool:hover{transform:translateY(-2px);border-color:var(--c)}
+.tool:focus-visible{outline:2px solid var(--c);outline-offset:3px}
+.tool-ico{flex:none;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent)}
+.tool-t{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tool-t b{font-weight:600;font-size:15.5px;line-height:1.3}
+.tool-t .small{line-height:1.4}
+.navlabel{align-self:center;font-size:13.5px;color:var(--muted);padding:0 10px}
+@media (max-width:640px){.brand small,.chip,.brand .txt{display:none}header{gap:4px}header select{max-width:46vw;font-size:13px}header .lnk{font-size:13px}header .lnk::after{content:""}header #newBtn{font-size:0}header #newBtn::before{content:"+";font-size:18px}.kpis{grid-template-columns:1fr 1fr;gap:12px}.kpis .card{padding:16px;border-radius:22px}.kpi .v{font-size:1.25rem}.kpi .l{font-size:12px}.card{border-radius:24px}.hero{padding:36px 0 24px}.fab b{display:none}.fab{padding:7px}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -127,7 +140,7 @@ body.ro button.b:not(.calc),body.ro .wr{display:none!important}
 <div id="toast"></div>
 <script>
 const $=s=>document.querySelector(s);
-let ENT=null, ENTS=[], YEAR=new Date().getFullYear(), TAB='dash';
+let ENT=null, ENTS=[], YEAR=new Date().getFullYear(), TAB='hub';
 const fmt=v=>(v==null?'—':Number(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'}));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
@@ -153,7 +166,7 @@ var TABS={entreprise:[['dash','Tableau de bord'],['bank','Banque & IA'],['inv','
 async function init(){
   for(let y=YEAR+1;y>=YEAR-4;y--)$('#year').insertAdjacentHTML('beforeend',`<option ${y==YEAR?'selected':''}>${y}</option>`);
   $('#year').onchange=e=>{YEAR=+e.target.value;render()};
-  $('#ent').onchange=e=>{ENT=ENTS.find(x=>x.id==e.target.value);ROLE=ENT.role;try{localStorage.setItem('ent',ENT.id)}catch{};TAB='dash';render()};
+  $('#ent').onchange=e=>{ENT=ENTS.find(x=>x.id==e.target.value);ROLE=ENT.role;try{localStorage.setItem('ent',ENT.id)}catch{};TAB='hub';render()};
   document.addEventListener('click',e=>{if(!e.target.closest('.user'))$('#menu').classList.add('hidden')});
   const st=await api('/api/auth/state');
   if(st.setup_needed)return showSetup();
