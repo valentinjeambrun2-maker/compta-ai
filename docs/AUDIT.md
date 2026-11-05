@@ -10,7 +10,7 @@ Ce qu'un professionnel attend d'un logiciel de comptabilité et de déclarations
 - **Facturation électronique (réforme française).** La réception des factures électroniques est obligatoire pour toutes les entreprises assujetties à la TVA depuis le 1er septembre 2026. L'émission s'impose aux PME et TPE à partir du 1er septembre 2027. Les échanges passent par des plateformes agréées, et l'e-reporting suit le même calendrier. Source : [La Fabrique du Net](https://www.lafabriquedunet.fr/logiciels/tendances/facturation-electronique-2026-obligations-calendrier), [Quadient](https://www.quadient.com/fr/news/nouvelles-dates-pour-la-reforme-du-e-invoicing). **ComptaIA : ABSENT** (pas de lecture de factures électroniques structurées, pas de Factur-X).
 - **Automatisation bancaire.** Rapprochement automatique, catégorisation par IA, intégrations, module de révision pour les cabinets. Source : [comparatif Tiime / Pennylane](https://comparepdp.com/articles/tiime-vs-pennylane). Les sources ne détaillent pas les règles personnalisables : à vérifier sur un essai gratuit. **ComptaIA : PARTIEL**, puis PRÉSENT pour les règles après la livraison de la banque.
 - **Exigences légales de tenue comptable.** Fichier des écritures comptables (FEC, art. A47 A-1 du livre des procédures fiscales), piste d'audit fiable (aucune écriture validée supprimée ni modifiée sans trace), TVA et IS au bon compte, mentions légales sur les factures. **ComptaIA : PARTIEL** (FEC présent, suppression possible).
-- **Particuliers.** Déclaration pré-remplie et expliquée case par case, simulation frais réels ou forfait, calendrier fiscal avec rappels. Référence : Taxfix, Hiboo, impots.gouv. **ComptaIA : PARTIEL à PRÉSENT** (Agent Impôts complet, audit en cours).
+- **Particuliers.** Déclaration pré-remplie et expliquée case par case, simulation frais réels ou forfait, calendrier fiscal avec rappels. Référence : Taxfix, Hiboo, impots.gouv. **ComptaIA : PARTIEL à PRÉSENT** (Agent Impôts complet, mais erreurs de calcul et de dépôt en priorité 0).
 
 ## 2. Constats transversaux, par priorité
 
@@ -30,6 +30,11 @@ Ce qu'un professionnel attend d'un logiciel de comptabilité et de déclarations
 | 10 | La liquidation de TVA datée du dernier jour de la période est relue dans la CA3, qui affiche alors 0 €. | TVA | `compta/tax.py:204-212`, `index.html:354` | lu |
 | 11 | La liquidation partielle ne solde pas 4452, 445662 ni 44562, pourtant comptés dans la CA3. | TVA | `compta/tax.py:246-249` | lu |
 | 12 | Le journal est limité à 500 écritures et la recherche à 300, sans avertissement. | Comptabilité | `compta/ledger.py:19,112` | lu |
+| 13 | **Déficit foncier faux** : les intérêts sont retranchés des loyers avant imputation. 8 320 € sont imputés sur le revenu global au lieu de 6 320 €, et les 2 000 € d'intérêts ne sont pas reportés. Le test fige l'erreur. | Mes impôts | `compta/foncier.py:29-30`, `tests/test_compta.py:130-134` | **vérifié** (calcul et test relus) |
+| 14 | Le dépôt ne contrôle que la présence des cases : une déclaration avec salaire estimé ou une annexe 3916 bloquante passe « prête ». Le connecteur partenaire n'appelle pas le contrôle. | Mes impôts | `compta/filing.py:33-41`, `compta/edi.py:82-83` | lu |
+| 15 | Justificatifs **écrasés** : deux IFU ou deux employeurs, seul le dernier compte. Un reçu importé deux fois compte deux fois. | Mes impôts | `compta/tax_agent.py:99-100, 153-155, 180-195` | lu |
+| 16 | **Estimation d'impôt fausse hors ligne** : calcul sans profil, une seule part, salaires nets bancaires. L'assistant la reprend. | Agents IA, Assistant | `compta/business.py:196`, `compta/ai.py:166-167` | lu |
+| 17 | Profil : en mode règles, « mon mari est salarié » écrase l'activité du déclarant. Une réponse non reconnue est effacée sans message. | Profil | `compta/profile.py:263-266, 656-657` | lu |
 
 ### Priorité 1 : fonctionnel pour un professionnel
 
@@ -43,6 +48,7 @@ Ce qu'un professionnel attend d'un logiciel de comptabilité et de déclarations
 - **Analyse** : la prévision de TVA ignore 44574 et 44586, donc elle sous-estime la TVA (`analysis.py:152`). La TVA à 20 % est codée en dur (`analysis.py:75-76`). Le point de départ est le solde comptable, non rapproché de la banque.
 - **États financiers** : classement des comptes par signe. Les amortissements créditeurs passent au passif au lieu d'être déduits de l'actif (`ledger.py:139-140`). Pas de N-1. Numérotation FEC non chronologique après une saisie antidatée (`ledger.py:156-162`, à valider).
 - **Impôts & liasse** : SIREN de la 2065 mal extrait quand le SIRET est saisi sans espaces (`liasse.py:96`, `server.py:105-107`). Acomptes d'IS jamais suivis. L'IS se calcule sur le résultat comptable, la 2065 sur le résultat fiscal (`business.py:162-167`, `liasse.py:94`).
+- **Mes impôts (particulier)** : dons de l'association classés à 66 % (`compta/ai.py:72`) ; solde du prélèvement à la source nul sans taux (`tax_agent.py:266-268`) ; test d'auto-éligibilité qui lit la valeur forfaitaire au lieu des frais réels (`tax_agent.py:368`) ; plafonnement de la pension et du PER à vérifier (`tax.py:111`).
 
 ## 3. État par outil
 
@@ -78,17 +84,23 @@ Ordre du menu : chaque outil a une fiche (fonctionne, défauts, écarts, amélio
 
 **Clôture** : verrouillage, amortissements linéaires au prorata, extournes sans double extourne présents. Checklist absente, CCA, suggestions à marquer, suppression à remplacer.
 
-**Profil** : entretien IA avec réponses libres, échéances personnalisées. Audit en cours.
+**Profil** : entretien IA question par question, réponses libres multi-champs, profil corrigeable à tout moment. Défauts : calendrier titré 2027 mais calculé pour 2026 (`static/v2.js:104`, `server.py:642`) ; « L'IA comparera » rattachement et pension sans aucun code (`profile.py:46-47`, `tax_agent.py:263-265`).
 
-**Agents IA** : 11 agents, base de connaissances hors ligne, repli sans clé. Audit en cours.
+**Agents IA** : 11 agents ; analyses locales toujours visibles ; base hors ligne fiable sur les règles courantes ; repli automatique si Claude échoue. Défauts : `is\b` et `ir\b` ne correspondent jamais (`ai.py:166`) ; l'historique de chat reste d'un dossier à l'autre (`static/v2.js:331`) ; l'agent de Budget et d'Exports côté particulier est l'Expert-comptable d'entreprise (`agents.py:200-203`).
 
 **Paramètres** : rôles appliqués côté serveur, PBKDF2 à 600 000 itérations, cookie HttpOnly et SameSite=Strict présents. Priorité 0 : SMTP en clair, dernier propriétaire, journal d'audit non fiable (pas de connexions ni d'échecs), sauvegarde et export complet absents.
 
 ### Particulier
 
-**Mes impôts (Agent Impôts)** : déclaration 2042 et annexes construite depuis le profil, lecture des justificatifs, relecture IA, dépôt. Audit en cours.
+**Mes impôts (Agent Impôts)** : calcul IR complet hors ligne (parts, décote, plafonnement, réductions, PFU ou barème), options comparées avec gain, provenance case par case, contrôles de cohérence. Priorité 0 : foncier faux, dépôt sans contrôle, justificatifs écrasés (§2). Écarts : 2042 explicitée case par case PARTIEL ; simulateur d'impact ABSENT ; justificatifs par année et case PARTIEL ; calendrier et rappels PARTIEL ; mode hors ligne PRÉSENT.
 
-**Budget**, **Exports**, **Profil** et **Agents IA** côté particulier : même base que l'entreprise. Audit en cours.
+**Budget** : l'écran budget est réservé à l'entreprise, mais le particulier voit l'état de résultat (`static/v2.js:8, 302-306`). Le budget annuel est divisé par 12 (`analysis.py:167`). Le moteur budgétaire par compte, avec écart et taux, est présent.
+
+**Exports** : PDF et Excel présents. L'export est titré « Compte de résultat » (`exports.py:315`), le FEC est proposé à un particulier (`index.html:407`), et ni la 2042 ni les justificatifs ne sont exportables (`server.py:504`). Hors ligne : PRÉSENT.
+
+**Profil (particulier)** : mêmes constats que côté entreprise, avec le défaut d'effacement des réponses non reconnues (§2, ligne 17).
+
+**Agents IA (particulier)** : mêmes constats que côté entreprise, plus l'estimation d'impôt fausse hors ligne (§2, ligne 16).
 
 ## 4. Ce qui est livré dans cette itération
 
@@ -104,16 +116,18 @@ Ordre du menu : chaque outil a une fiche (fonctionne, défauts, écarts, amélio
 Un outil par itération, un commit et un push par outil. L'ordre suit le risque pour le professionnel.
 
 1. **Comptabilité** : remplacer la suppression par une contre-passation tracée, et journaliser le contenu. Lever les limites de 300 et 500 lignes.
-2. **Impôts & liasse et TVA** : IS au 444, liquidation TVA, SIREN, acomptes.
+2. **Impôts** : entreprise (IS au 444, liquidation TVA, SIREN, acomptes) et particulier (foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant).
 3. **Déclarations** : upsert par type et période, bouton « déposée », propagation des accusés.
 4. **Paramètres** : SMTP sans identifiants en clair, garde du dernier propriétaire, droits sur les salaires et NIR, journal d'audit réel.
 5. **Paie** : DSN liée à `edi_test`, CSG, mutuelle, prorata.
 6. **Factures et Devis** : mentions légales dans le PDF, avoirs, règlements partiels, relances fiables, lecture des factures électroniques reçues.
 7. **Tiers**, **Notes de frais**, **Clôture**, **États financiers**, **Analyse**.
-8. **Agent Impôts, Profil, Agents IA** (particulier).
+8. **Profil, Agents IA, Budget et Exports** (particulier) : titre du calendrier, mémoire des réponses, agent dédié, budget réservé au budget, export sans FEC.
 
 ## 6. Limites
 
 - Taux et barèmes (PAS, cotisations 2026, seuils, barème kilométrique, échéance CA3 trimestrielle) ne sont pas confirmés par cet audit : à vérifier à la correction de chaque outil.
 - Les constats « lu » ne sont pas reproduits ; les « vérifié » l'ont été par relecture directe ou par exécution.
 - Les attentes professionnelles s'appuient sur deux recherches publiques et sur la pratique du métier, pas sur une enquête auprès d'utilisateurs.
+- Les constats fiscaux du particulier (foncier, dépôt, justificatifs, dons) sont des lectures de code : aucun scénario n'a encore été exécuté. Le barème 2026 (`tax.py:26`) et les seuils sont à confirmer sur les textes officiels avant toute correction.
+- Les tests des fonctions IA avec Claude n'ont pas été lancés : la clé n'était pas présente dans l'environnement de la session.
