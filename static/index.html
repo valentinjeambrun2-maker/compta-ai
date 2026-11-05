@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ComptaIA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Direction artistique : continuité The Herakles (pearl / ink / violet #4b3fd6 / halo) */
+:root{
+  --bg:#fff;--panel:#f5f5f7;--panel-2:#fff;--ink:#1d1d1f;--ink-2:#424245;--muted:#6e6e73;--muted-2:#86868b;
+  --line:#e8e8ed;--hair:#d2d2d7;--accent:#4b3fd6;--accent-hover:#3c31c2;--accent-ink:#fff;--link:#4b3fd6;--soft:#efedfd;
+  --ok:#1d7a46;--warn:#b25000;--bad:#c4001a;--prod:#4b3fd6;--charge:#3bc9f5;
+  --nav-bg:rgba(255,255,255,.8);--halo:linear-gradient(100deg,#7c5cff 0%,#e056c1 50%,#3bc9f5 100%);
+  --sans:Inter,-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,sans-serif;
+  --r-s:12px;--r:22px;--r-l:30px;--ease:cubic-bezier(.25,.1,.25,1);--shadow:0 2px 6px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.06)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#000;--panel:#161617;--panel-2:#1d1d1f;--ink:#f5f5f7;--ink-2:#d2d2d7;--muted:#a1a1a6;--muted-2:#86868b;
+  --line:#2c2c2e;--hair:#424245;--link:#a99fff;--soft:#211d3d;--ok:#4cc27e;--warn:#f0a050;--bad:#ff6b6b;--prod:#8b7dff;--charge:#3bc9f5;
+  --nav-bg:rgba(22,22,23,.72);--shadow:0 2px 6px rgba(0,0,0,.4),0 12px 32px rgba(0,0,0,.5)}}
+*{box-sizing:border-box}html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.47 var(--sans);letter-spacing:-.011em;-webkit-font-smoothing:antialiased}
+::selection{background:var(--soft)}
+/* Barre globale translucide */
+header{position:sticky;top:0;z-index:20;height:52px;display:flex;align-items:center;gap:14px;padding:0 max(16px,calc((100vw - 1180px)/2));
+  background:var(--nav-bg);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:9px;font-weight:600;font-size:17px;letter-spacing:-.02em;margin-right:auto;white-space:nowrap}
+.brand .mark{width:26px;height:26px;border-radius:8px;background:var(--halo);display:grid;place-items:center;color:#fff;font-size:13px;font-weight:700;box-shadow:0 4px 12px rgba(124,92,255,.35)}
+.brand small{font-weight:400;color:var(--muted-2);font-size:12px;letter-spacing:0}
+header select{border:0;background:transparent;font-weight:500;font-size:14px;padding:6px 4px;cursor:pointer;max-width:240px}
+header select:focus{box-shadow:none}
+.chip{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--panel);color:var(--muted);white-space:nowrap;display:inline-flex;align-items:center;gap:6px}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--muted-2)}.chip.on i{background:var(--ok)}
+/* Sous-navigation façon apple.com */
+nav{position:sticky;top:52px;z-index:15;background:var(--nav-bg);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);border-bottom:1px solid var(--line)}
+nav .in{max-width:1180px;margin:0 auto;padding:8px 16px;display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}nav .in::-webkit-scrollbar{display:none}
+nav button{flex:none;background:none;border:0;padding:7px 14px;border-radius:99px;color:var(--ink-2);cursor:pointer;font:inherit;font-size:13.5px;transition:background .2s var(--ease),color .2s}
+nav button:hover{background:var(--panel)}nav button.on{background:var(--ink);color:var(--bg);font-weight:500}
+main{max-width:1180px;margin:0 auto;padding:0 16px 120px;position:relative;overflow-x:clip}
+/* Hero de section */
+.hero{position:relative;padding:56px 0 32px}
+.hero::before{content:"";position:absolute;right:-6%;top:-10%;width:520px;height:340px;max-width:70vw;background:var(--halo);filter:blur(90px);opacity:.16;border-radius:50%;pointer-events:none;z-index:-1}
+.eyebrow{color:var(--muted);font-weight:600;font-size:14px;margin:0 0 10px;letter-spacing:-.005em}
+.hero h1{font-size:clamp(2.4rem,1.6rem + 3.2vw,4rem);line-height:1.04;letter-spacing:-.04em;font-weight:700;margin:0}
+.hero p.lead{font-size:clamp(1.1rem,1rem + .5vw,1.35rem);color:var(--muted);max-width:720px;margin:14px 0 0;letter-spacing:-.015em}
+/* Cartes */
+.card{background:var(--panel);border-radius:var(--r-l);padding:clamp(20px,3vw,32px);margin-bottom:20px}
+.card .card{background:var(--panel-2);border-radius:var(--r);box-shadow:var(--shadow)}
+.card h2{font-size:clamp(1.3rem,1.1rem + .7vw,1.7rem);letter-spacing:-.03em;font-weight:700;margin:0 0 16px;line-height:1.15}
+.card h3{font-size:17px;letter-spacing:-.02em;font-weight:600;margin:22px 0 10px}
+.card > .eb{color:var(--link);font-weight:500;font-size:14px;margin-bottom:6px}
+.grid{display:grid;gap:20px;grid-template-columns:repeat(auto-fit,minmax(210px,1fr))}
+.grid > .card{margin-bottom:0;min-width:0}
+.kpis{grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr))}
+td:first-child{white-space:nowrap}
+input[type=file]{padding:6px;min-height:44px}input[type=file]::file-selector-button{font:inherit;font-size:14px;border:0;border-radius:999px;padding:7px 16px;margin-right:12px;background:var(--soft);color:var(--link);cursor:pointer}
+.grid + .card,.card + .grid{margin-top:20px}
+.kpi .l{color:var(--muted);font-size:13px;font-weight:500;margin-bottom:6px}
+.kpi .v{font-size:clamp(1.45rem,1.2rem + .8vw,1.85rem);white-space:nowrap;font-weight:700;letter-spacing:-.035em;font-variant-numeric:tabular-nums;line-height:1.1}
+/* Tableaux */
+table{width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums;font-size:14px}
+th,td{padding:11px 10px;border-bottom:1px solid var(--line);text-align:left;vertical-align:middle}
+th{color:var(--muted-2);font-weight:500;font-size:12px;text-transform:none;letter-spacing:0}
+tr:last-child td{border-bottom:0}td.n,th.n{text-align:right}.scroll{overflow-x:auto;margin:0 -6px;padding:0 6px}
+/* Formulaires */
+input,select,textarea{font:inherit;font-size:15px;color:var(--ink);background:var(--panel-2);border:1px solid var(--hair);border-radius:var(--r-s);padding:10px 12px;max-width:100%;min-height:44px;transition:border-color .2s,box-shadow .2s;outline:none}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);box-shadow:0 0 0 4px var(--soft)}
+textarea{width:100%;min-height:120px;resize:vertical}
+label{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500;color:var(--muted)}
+.form{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));align-items:end}
+/* Boutons pilule */
+button.b,button.g,a.g{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:10px 22px;border-radius:999px;font:inherit;font-size:15px;cursor:pointer;text-decoration:none;transition:background .2s var(--ease),transform .15s var(--ease),border-color .2s}
+button.b{background:var(--accent);color:#fff;border:1px solid transparent;font-weight:500}
+button.b:hover{background:var(--accent-hover)}button.b:active,button.g:active{transform:scale(.97)}
+button.g,a.g{background:transparent;color:var(--link);border:1px solid var(--hair)}
+button.g:hover,a.g:hover{border-color:var(--link)}
+button.g.small{min-height:32px;padding:4px 12px;font-size:13px}
+.lnk{background:none;border:0;color:var(--link);font:inherit;cursor:pointer;padding:0}.lnk::after{content:" ›"}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted)}.small{font-size:13px}
+details summary{cursor:pointer;color:var(--link);margin-top:18px;list-style:none}details summary::before{content:"✦ "}
+details[open] summary{margin-bottom:10px}
+code{font:13px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--panel-2);padding:2px 6px;border-radius:6px}
+pre{white-space:pre-wrap;font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--muted)}
+/* Alertes */
+.al{display:flex;gap:12px;align-items:flex-start;padding:14px 16px;border-radius:16px;margin:8px 0;background:var(--panel-2);font-size:14.5px}
+.al::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;margin-top:7px;background:var(--muted-2)}
+.al.critique::before{background:var(--bad)}.al.attention::before{background:var(--warn)}.al.info::before{background:var(--accent)}.al.ok::before{background:var(--ok)}
+.card .card .al{background:var(--panel)}
+.conf{display:inline-block;width:44px;height:5px;border-radius:3px;background:var(--line);vertical-align:middle;overflow:hidden;margin-right:6px}.conf i{display:block;height:100%;border-radius:3px}
+/* Assistant */
+.chat{display:flex;flex-direction:column;gap:10px;max-height:480px;overflow:auto;margin-bottom:16px;padding:4px}
+.msg{padding:11px 16px;border-radius:20px;white-space:pre-wrap;max-width:80%;font-size:15px;line-height:1.45}
+.msg.u{align-self:flex-end;background:var(--accent);color:#fff;border-bottom-right-radius:6px}
+.msg.a{background:var(--panel-2);border-bottom-left-radius:6px;box-shadow:var(--shadow)}
+.fab{position:fixed;right:20px;bottom:20px;z-index:30;display:flex;align-items:center;gap:10px;padding:7px 18px 7px 7px;border-radius:999px;border:1px solid var(--line);
+  background:var(--nav-bg);backdrop-filter:saturate(1.8) blur(20px);-webkit-backdrop-filter:saturate(1.8) blur(20px);box-shadow:var(--shadow);color:var(--ink);font:inherit;font-size:15px;cursor:pointer;transition:transform .2s var(--ease)}
+.fab:hover{transform:translateY(-2px)}.fab span{width:38px;height:38px;border-radius:50%;background:var(--halo);display:grid;place-items:center;color:#fff;font-size:17px;box-shadow:0 0 18px rgba(224,86,193,.45)}
+#toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:rgba(29,29,31,.88);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:#f5f5f7;padding:12px 20px;border-radius:999px;display:none;z-index:40;max-width:90vw;font-size:14px;box-shadow:var(--shadow)}
+.legend{display:flex;gap:18px;font-size:13px;color:var(--muted);margin-bottom:8px}.legend i{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px}
+.hidden{display:none}ol{padding-left:20px}ol li{margin:6px 0}
+.big{font-size:clamp(2.2rem,1.6rem + 2vw,3.2rem)!important}
+@media (max-width:640px){.brand small,.chip,.brand .txt{display:none}header{gap:4px}header select{max-width:46vw;font-size:13px}header .lnk{font-size:13px}header .lnk::after{content:""}.kpis{grid-template-columns:1fr 1fr;gap:12px}.kpis .card{padding:16px;border-radius:22px}.kpi .v{font-size:1.25rem}.kpi .l{font-size:12px}.card{border-radius:24px}.hero{padding:36px 0 24px}.fab b{display:none}.fab{padding:7px}}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand"><span class="mark">€</span><span class="txt">ComptaIA</span> <small>par The Herakles</small></div>
+  <select id="ent" aria-label="Dossier"></select>
+  <select id="year" aria-label="Exercice"></select>
+  <button class="lnk small" onclick="newEntity()" style="white-space:nowrap" aria-label="Nouveau dossier">+ Dossier</button>
+  <span id="iaBadge" class="chip"></span>
+</header>
+<nav><div class="in" id="nav"></div></nav>
+<main><section class="hero" id="hero"></section><div id="view"></div></main>
+<button class="fab" onclick="TAB='ai';render();scrollTo({top:0,behavior:'smooth'})" aria-label="Demander à l'IA"><span>✦</span><b style="font-weight:400">Demander à l'IA</b></button>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+let ENT=null, ENTS=[], YEAR=new Date().getFullYear(), TAB='dash';
+const fmt=v=>(v==null?'—':Number(v).toLocaleString('fr-FR',{style:'currency',currency:'EUR'}));
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(t._h);t._h=setTimeout(()=>t.style.display='none',3500)}
+async function api(path,body,method){
+  const r=await fetch(path,{method:method||(body?'POST':'GET'),headers:{'Content-Type':'application/json','X-Entity':ENT?.id||0},body:body?JSON.stringify(body):undefined});
+  const ct=r.headers.get('content-type')||'';const d=ct.includes('json')?await r.json():await r.text();
+  if(!r.ok){toast('⚠ '+(d.error||d));throw new Error(d.error||d)}return d}
+const TABS={entreprise:[['dash','Tableau de bord'],['bank','Banque & IA'],['inv','Factures'],['jrn','Écritures'],['rep','États financiers'],['tva','TVA'],['tax','Impôts'],['ai','Assistant IA'],['close','Clôture & exports']],
+ particulier:[['dash','Tableau de bord'],['bank','Banque & IA'],['jrn','Écritures'],['rep','Budget'],['tax','Déclaration de revenus'],['ai','Assistant IA'],['close','Exports']]};
+
+async function init(){
+  for(let y=YEAR+1;y>=YEAR-4;y--)$('#year').insertAdjacentHTML('beforeend',`<option ${y==YEAR?'selected':''}>${y}</option>`);
+  $('#year').onchange=e=>{YEAR=+e.target.value;render()};
+  $('#ent').onchange=e=>{ENT=ENTS.find(x=>x.id==e.target.value);try{localStorage.setItem('ent',ENT.id)}catch{};TAB='dash';render()};
+  await loadEnts();
+}
+async function loadEnts(sel){
+  ENTS=await api('/api/entities');
+  if(!ENTS.length){$('#hero').innerHTML=`<p class="eyebrow">Bienvenue</p><h1>Votre compta.<br>Vos impôts.<br>Automatiquement.</h1><p class="lead">Entreprise ou particulier : importez vos relevés, l'IA s'occupe du reste.</p><p class="row" style="margin-top:28px"><button class="b" onclick="newEntity()">Créer mon dossier</button><span class="muted small">ou relancez avec <code>--demo</code></span></p>`;return}
+  let saved;try{saved=localStorage.getItem('ent')}catch{}
+  ENT=ENTS.find(e=>e.id==(sel||saved))||ENTS[0];
+  $('#ent').innerHTML=ENTS.map(e=>`<option value="${e.id}" ${e.id==ENT.id?'selected':''}>${esc(e.name)}</option>`).join('');
+  render();
+}
+async function newEntity(){
+  $('#nav').innerHTML='';$('#hero').innerHTML=`<p class="eyebrow">Nouveau dossier</p><h1>Commençons.</h1><p class="lead">Le plan comptable adapté est installé automatiquement.</p>`;
+  $('#view').innerHTML=`<div class="card"><h2>Votre dossier</h2><div class="form">
+  <label>Nom<input id="nName" placeholder="Ma société / Mon foyer"></label>
+  <label>Type<select id="nKind" onchange="document.getElementById('entOpts').classList.toggle('hidden',this.value!='entreprise')"><option value="entreprise">Entreprise</option><option value="particulier">Particulier</option></select></label></div>
+  <div id="entOpts" class="form" style="margin-top:10px">
+  <label>Forme juridique<select id="nForm"><option>SASU</option><option>SAS</option><option>SARL</option><option>EURL</option><option>EI</option><option>Micro-entreprise</option></select></label>
+  <label>Régime de TVA<select id="nTva"><option value="reel">Réel (CA3)</option><option value="franchise">Franchise en base</option></select></label>
+  <label>SIRET<input id="nSiret"></label><label>Adresse<input id="nAddr"></label></div>
+  <p><button class="b" onclick="createEnt()">Créer</button></p></div>`}
+async function createEnt(){
+  const k=$('#nKind').value;const r=await api('/api/entities',{name:$('#nName').value||'Nouveau dossier',kind:k,legal_form:k=='entreprise'?$('#nForm').value:null,tva_regime:k=='entreprise'?$('#nTva').value:'aucune',siret:$('#nSiret').value,address:$('#nAddr').value});
+  toast('Dossier créé, plan comptable installé');loadEnts(r.id)}
+
+const HERO={dash:['Tableau de bord.','Vos chiffres clés, à jour à chaque opération.'],
+ bank:['Banque & IA.','Importez un relevé. L\'IA classe, ventile la TVA et lettre vos factures.'],
+ inv:['Factures.','Numérotation légale, mentions obligatoires, PDF en un clic.'],
+ jrn:['Écritures.','La partie double, sans effort. Toujours équilibrée.'],
+ rep:['États financiers.','Compte de résultat, bilan et balance. En temps réel.'],
+ tva:['TVA.','Votre CA3, calculée ligne par ligne.'],
+ tax:['Impôts.','Votre déclaration, pré-remplie par l\'IA.'],
+ ai:['Demandez. Tout simplement.','Un assistant comptable et fiscal qui connaît votre dossier.'],
+ close:['Clôture & exports.','Amortissements, impôt, verrouillage et FEC. En une fois.']};
+function setHero(){const [t,l]=HERO[TAB];const P=ENT.kind=='particulier';
+  const title={rep:P?'Budget.':t,tax:P?'Vos impôts. Pré-remplis.':t,close:P?'Exports.':t}[TAB]||t;
+  $('#hero').innerHTML=`<p class="eyebrow">${esc(ENT.name)} · ${YEAR}</p><h1>${title}</h1><p class="lead">${l}</p>`}
+function render(){setHero();document.querySelector('.fab').style.display=TAB=='ai'?'none':'';
+  $('#nav').innerHTML=TABS[ENT.kind].map(([k,l])=>`<button class="${k==TAB?'on':''}" onclick="TAB='${k}';render()">${l}</button>`).join('');
+  $('#view').innerHTML='';
+  ({dash,bank,inv,jrn,rep,tva,tax,ai:assistant,close})[TAB]().catch(e=>console.error(e));
+}
+
+// ---------- Tableau de bord ----------
+async function dash(){
+  const d=await api(`/api/dashboard?year=${YEAR}`);const c=d.context;
+  $('#iaBadge').className='chip'+(d.ia?' on':'');$('#iaBadge').innerHTML=`<i></i>${d.ia?'Claude connecté':'IA locale'}`;
+  const max=Math.max(1,...d.mois.flatMap(m=>[m.produits,m.charges]));const W=1080,H=220,bw=W/12;
+  const bars=d.mois.map((m,i)=>{const hp=m.produits/max*(H-20),hc=m.charges/max*(H-20);
+    return `<rect x="${i*bw+bw/2-26}" y="${H-hp}" width="24" height="${hp}" rx="6" fill="var(--prod)"><title>${fmt(m.produits)}</title></rect>
+    <rect x="${i*bw+bw/2+2}" y="${H-hc}" width="24" height="${hc}" rx="6" fill="var(--charge)"><title>${fmt(m.charges)}</title></rect>
+    <text x="${i*bw+bw/2}" y="${H+18}" font-size="13" text-anchor="middle" fill="var(--muted)">${'JFMAMJJASOND'[i]}</text>`}).join('');
+  const isP=ENT.kind=='particulier';
+  $('#view').innerHTML=`<div class="grid kpis">
+   <div class="card kpi"><div class="l">${isP?'Revenus':'Produits'} ${YEAR}</div><div class="v">${fmt(c.produits)}</div></div>
+   <div class="card kpi"><div class="l">${isP?'Dépenses':'Charges'} ${YEAR}</div><div class="v">${fmt(c.charges)}</div></div>
+   <div class="card kpi"><div class="l">${isP?'Épargne nette':'Résultat'}</div><div class="v" style="color:${c.resultat<0?'var(--bad)':'var(--ok)'}">${fmt(c.resultat)}</div></div>
+   <div class="card kpi"><div class="l">Trésorerie</div><div class="v">${fmt(c.tresorerie)}</div></div>
+   ${c.tva?`<div class="card kpi"><div class="l">TVA nette ${YEAR}</div><div class="v">${fmt(c.tva.a_payer||-c.tva.credit)}</div></div>`:''}
+   <div class="card kpi"><div class="l">Impôt estimé</div><div class="v" style="font-size:17px;white-space:normal;letter-spacing:-.02em">${esc(c.impot_estime)}</div></div></div>
+  <div class="card"><h2>Évolution mensuelle</h2><div class="legend"><span><i style="background:var(--prod)"></i>${isP?'Revenus':'Produits'}</span><span><i style="background:var(--charge)"></i>${isP?'Dépenses':'Charges'}</span></div>
+   <svg viewBox="0 0 ${W} ${H+24}" style="width:100%;height:auto;display:block">${bars}</svg></div>
+  <div class="card"><h2>Revue automatique (audit IA)</h2>${d.alertes.map(a=>`<div class="al ${a.niveau}">${esc(a.message)}</div>`).join('')}</div>`;
+}
+
+// ---------- Banque ----------
+let ACCS=[];
+async function bank(){
+  ACCS=await api('/api/accounts');const st=window._bst||'pending';const tx=await api('/api/bank?status='+st);
+  const opts=a=>ACCS.map(x=>`<option value="${x.code}" ${x.code==a?'selected':''}>${x.code} ${esc(x.label)}</option>`).join('');
+  const tvaSel=(id,r)=>ENT.kind=='entreprise'?`<select id="r${id}">${[0,2.1,5.5,10,20].map(v=>`<option ${v==r?'selected':''}>${v}</option>`).join('')}</select>`:'';
+  $('#view').innerHTML=`<div class="card"><h2>Importer un relevé bancaire (CSV)</h2>
+   <p class="muted small">Colonnes reconnues automatiquement : Date, Libellé, Montant — ou Débit/Crédit. Séparateur ; , ou tabulation. Les doublons sont ignorés et chaque ligne est catégorisée par l'IA puis lettrée avec vos factures ouvertes.</p>
+   <div class="row"><input type="file" id="csvf" accept=".csv,.txt"><button class="b" onclick="importCsv()">Importer & catégoriser</button></div></div>
+  <div class="card"><div class="row" style="justify-content:space-between"><h2>Opérations ${st=='pending'?'à valider':'validées'} (${tx.length})</h2>
+   <div class="row"><button class="g" onclick="window._bst='${st=='pending'?'validated':'pending'}';bank()">Voir ${st=='pending'?'validées':'à valider'}</button>
+   ${st=='pending'?`<button class="b" onclick="valAll()">Valider tout ≥ 80 % de confiance</button>`:''}</div></div>
+   <div class="scroll"><table><tr><th>Date</th><th>Libellé</th><th class="n">Montant</th><th>Compte proposé</th>${ENT.kind=='entreprise'?'<th>TVA %</th>':''}<th>Confiance</th><th></th></tr>
+   ${tx.map(t=>`<tr><td>${t.date}</td><td>${esc(t.label)}<div class="small muted">${esc(t.reason||'')}</div></td><td class="n" style="color:${t.amount<0?'var(--bad)':'var(--ok)'}">${fmt(t.amount)}</td>
+   <td>${st=='pending'?`<select id="a${t.id}" style="max-width:240px">${opts(t.account)}</select>`:esc(t.account)}</td>${ENT.kind=='entreprise'?`<td>${st=='pending'?tvaSel(t.id,t.tva_rate):t.tva_rate}</td>`:''}
+   <td style="white-space:nowrap"><span class="conf"><i style="width:${(t.confidence||0)*100}%;background:${t.confidence>=.8?'var(--ok)':t.confidence>=.5?'var(--warn)':'var(--bad)'}"></i></span> ${Math.round((t.confidence||0)*100)} %</td>
+   <td>${st=='pending'?`<button class="g" onclick="val(${t.id})">Valider</button>`:''}</td></tr>`).join('')||'<tr><td colspan="7" class="muted">Aucune opération.</td></tr>'}</table></div></div>`;
+}
+async function importCsv(){const f=$('#csvf').files[0];if(!f)return toast('Choisissez un fichier');const r=await api('/api/bank/import',{csv:await f.text()});toast(`${r.imported} opération(s) importée(s), ${r.duplicates} doublon(s) ignoré(s)`);bank()}
+async function val(id){const r=$('#r'+id);await api(`/api/bank/${id}/validate`,{account:$('#a'+id).value,tva_rate:r?+r.value:0});toast('Écriture passée');bank()}
+async function valAll(){const r=await api('/api/bank/validate-confident',{min_conf:.8});toast(`${r.validated} opération(s) comptabilisée(s)`);bank()}
+
+// ---------- Factures ----------
+async function inv(){
+  const list=await api('/api/invoices');ACCS=await api('/api/accounts');
+  $('#view').innerHTML=`<div class="card"><h2>Nouvelle facture</h2><div class="form">
+   <label>Type<select id="iK"><option value="sale">Vente (client)</option><option value="purchase">Achat (fournisseur)</option></select></label>
+   <label>Tiers<input id="iP" placeholder="Nom du client / fournisseur"></label><label>Date<input type="date" id="iD" value="${new Date().toISOString().slice(0,10)}"></label>
+   <label>N° (achats)<input id="iN" placeholder="auto pour les ventes"></label>
+   <label>Compte<select id="iA"><option value="">Par défaut (706 / 606)</option>${ACCS.filter(a=>/^[267]/.test(a.code)).map(a=>`<option value="${a.code}">${a.code} ${esc(a.label)}</option>`).join('')}</select></label></div>
+   <h3>Lignes</h3><div id="iL"></div><p class="row"><button class="g" onclick="addLine()">+ Ligne</button><button class="b" onclick="saveInv()">Enregistrer & comptabiliser</button></p>
+   <details><summary class="muted">Extraire automatiquement depuis le texte d'une facture (IA)</summary><textarea id="iT" placeholder="Collez ici le texte de la facture fournisseur (PDF copié, OCR…)"></textarea><button class="g" onclick="extractInv()">Extraire</button></details></div>
+  <div class="card"><h2>Factures</h2><div class="scroll"><table><tr><th>N°</th><th>Date</th><th>Tiers</th><th class="n">HT</th><th class="n">TVA</th><th class="n">TTC</th><th>Statut</th><th></th></tr>
+  ${list.map(i=>`<tr><td>${esc(i.number)}</td><td>${i.date}</td><td>${esc(i.party)} <span class="small muted">${i.kind=='sale'?'client':'fournisseur'}</span></td><td class="n">${fmt(i.ht)}</td><td class="n">${fmt(i.tva)}</td><td class="n">${fmt(i.ttc)}</td>
+  <td>${i.status=='paid'?'<span style="color:var(--ok)">Réglée</span>':(i.due<new Date().toISOString().slice(0,10)?'<span style="color:var(--bad)">Échue</span>':'Ouverte')}</td>
+  <td class="row">${i.status!='paid'?`<button class="g" onclick="payInv(${i.id})">Marquer réglée</button>`:''}${i.kind=='sale'?`<button class="g" onclick="openInv(${i.id})">PDF / imprimer</button>`:''}</td></tr>`).join('')||'<tr><td colspan="8" class="muted">Aucune facture.</td></tr>'}</table></div></div>`;
+  addLine();
+}
+function addLine(l={}){$('#iL').insertAdjacentHTML('beforeend',`<div class="form il" style="margin-bottom:8px"><label>Désignation<input class="lL" value="${esc(l.label||'')}"></label><label>Qté<input class="lQ" type="number" step="any" value="${l.qty||1}"></label><label>PU HT (€)<input class="lU" type="number" step="0.01" value="${l.unit_price||''}"></label><label>TVA %<select class="lR">${[20,10,5.5,2.1,0].map(v=>`<option ${v==(l.tva_rate??20)?'selected':''}>${v}</option>`).join('')}</select></label></div>`)}
+async function saveInv(){const lines=[...document.querySelectorAll('.il')].map(d=>({label:d.querySelector('.lL').value,qty:+d.querySelector('.lQ').value,unit_price:+d.querySelector('.lU').value,tva_rate:+d.querySelector('.lR').value})).filter(l=>l.unit_price);
+  await api('/api/invoices',{kind:$('#iK').value,party:$('#iP').value||'—',date:$('#iD').value,number:$('#iN').value||null,account:$('#iA').value||null,lines});toast('Facture enregistrée et comptabilisée');inv()}
+async function extractInv(){const d=await api('/api/invoices/extract',{text:$('#iT').value});$('#iK').value='purchase';$('#iP').value=d.party||'';if(d.date)$('#iD').value=d.date;$('#iN').value=d.number||'';$('#iL').innerHTML='';(d.lines||[]).forEach(addLine);toast('Champs extraits ('+(d.source=='ia'?'IA':'règles')+') — vérifiez avant d\'enregistrer')}
+async function payInv(id){await api(`/api/invoices/${id}/pay`,{date:new Date().toISOString().slice(0,10)});toast('Règlement comptabilisé');inv()}
+async function openInv(id){const h=await api(`/api/invoices/${id}/html`);const w=window.open('');if(w){w.document.write(h);w.document.close()}else toast('Autorisez les fenêtres pop-up')}
+
+// ---------- Écritures ----------
+async function jrn(){
+  const list=await api(`/api/entries?start=${YEAR}-01-01&end=${YEAR}-12-31`);ACCS=await api('/api/accounts');
+  const opts=ACCS.map(x=>`<option value="${x.code}">${x.code} ${esc(x.label)}</option>`).join('');
+  $('#view').innerHTML=`<div class="card"><h2>Saisie d'une écriture (opérations diverses)</h2><div class="form"><label>Date<input type="date" id="jD" value="${new Date().toISOString().slice(0,10)}"></label><label>Journal<select id="jJ"><option>OD</option><option>BQ</option><option>AC</option><option>VE</option><option>AN</option></select></label><label>Libellé<input id="jL"></label></div>
+   <div id="jLines"></div><p class="row"><button class="g" onclick="jAdd()">+ Ligne</button><button class="b" onclick="jSave()">Enregistrer</button><span id="jBal" class="muted small"></span></p></div>
+  <div class="card"><h2>Journal ${YEAR} (${list.length} écritures)</h2><div class="scroll"><table><tr><th>Date</th><th>Jnl</th><th>Libellé</th><th>Compte</th><th class="n">Débit</th><th class="n">Crédit</th><th></th></tr>
+  ${list.map(e=>e.lines.map((l,i)=>`<tr${i?'':' style="border-top:2px solid var(--line)"'}><td>${i?'':e.date}</td><td>${i?'':e.journal}</td><td>${i?'':esc(e.label)}</td><td>${l.account}</td><td class="n">${l.debit?fmt(l.debit):''}</td><td class="n">${l.credit?fmt(l.credit):''}</td><td>${i?'':`<button class="g small" onclick="jDel(${e.id})">Suppr.</button>`}</td></tr>`).join('')).join('')}</table></div></div>`;
+  window._opts=opts;jAdd();jAdd();
+}
+function jAdd(){$('#jLines').insertAdjacentHTML('beforeend',`<div class="form jl" style="margin-top:8px"><label>Compte<select class="jA">${window._opts}</select></label><label>Débit<input class="jDb" type="number" step="0.01" oninput="jBal()"></label><label>Crédit<input class="jCr" type="number" step="0.01" oninput="jBal()"></label></div>`)}
+function jBal(){let d=0,c=0;document.querySelectorAll('.jl').forEach(r=>{d+=+r.querySelector('.jDb').value||0;c+=+r.querySelector('.jCr').value||0});$('#jBal').textContent=`Débit ${fmt(d)} · Crédit ${fmt(c)} ${Math.abs(d-c)<.005&&d?'✓ équilibrée':'— non équilibrée'}`}
+async function jSave(){const lines=[...document.querySelectorAll('.jl')].map(r=>({account:r.querySelector('.jA').value,debit:r.querySelector('.jDb').value||0,credit:r.querySelector('.jCr').value||0})).filter(l=>+l.debit||+l.credit);
+  await api('/api/entries',{date:$('#jD').value,journal:$('#jJ').value,label:$('#jL').value||'Écriture',lines});toast('Écriture enregistrée');jrn()}
+async function jDel(id){if(!confirm('Supprimer cette écriture ?'))return;await api(`/api/entries/${id}/delete`,{});toast('Écriture supprimée');jrn()}
+
+// ---------- États financiers ----------
+const tbl=(rows,cols)=>`<div class="scroll"><table><tr>${cols.map(c=>`<th class="${c[2]||''}">${c[0]}</th>`).join('')}</tr>${rows.map(r=>`<tr>${cols.map(c=>`<td class="${c[2]||''}">${c[2]=='n'?fmt(r[c[1]]):esc(r[c[1]])}</td>`).join('')}</tr>`).join('')}</table></div>`;
+async function rep(){
+  const [res,bil,bal]=await Promise.all([api(`/api/reports/resultat?year=${YEAR}`),api(`/api/reports/bilan?year=${YEAR}`),api(`/api/reports/balance?year=${YEAR}`)]);
+  const isP=ENT.kind=='particulier';
+  $('#view').innerHTML=`<div class="grid"><div class="card"><h2>${isP?'Dépenses':'Charges'}</h2>${tbl(res.charges,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>Total : ${fmt(res.total_charges)}</strong></p></div>
+   <div class="card"><h2>${isP?'Revenus':'Produits'}</h2>${tbl(res.produits,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>Total : ${fmt(res.total_produits)}</strong></p></div></div>
+   <div class="card"><h2>${isP?'Solde (épargne)':'Résultat de l\'exercice'} : <span style="color:${res.resultat<0?'var(--bad)':'var(--ok)'}">${fmt(res.resultat)}</span></h2></div>
+   ${isP?'':`<div class="grid"><div class="card"><h2>Bilan — Actif au 31/12/${YEAR}</h2>${tbl(bil.actif,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>${fmt(bil.total_actif)}</strong></p></div>
+   <div class="card"><h2>Bilan — Passif</h2>${tbl(bil.passif,[['Compte','account'],['Libellé','label'],['Montant','montant','n']])}<p><strong>${fmt(bil.total_passif)}</strong> ${bil.equilibre?'<span style="color:var(--ok)">✓ équilibré</span>':'<span style="color:var(--bad)">déséquilibré</span>'}</p></div></div>`}
+   <div class="card"><h2>Balance générale ${YEAR}</h2>${tbl(bal.rows,[['Compte','account'],['Libellé','label'],['Débit','debit','n'],['Crédit','credit','n'],['Solde','solde','n']])}<p>Totaux : ${fmt(bal.total_debit)} / ${fmt(bal.total_credit)}</p></div>`;
+}
+
+// ---------- TVA ----------
+async function tva(){
+  window._tp=window._tp||`${YEAR}-01`;const [y,m]=window._tp.split('-');const end=new Date(+y,+m,0).getDate();
+  const s=`${y}-${m}-01`,e=`${y}-${m}-${end}`;const d=await api(`/api/tax/ca3?start=${s}&end=${e}`);
+  $('#view').innerHTML=`<div class="card"><h2>Déclaration de TVA CA3</h2><div class="row"><label>Période<input type="month" value="${window._tp}" onchange="window._tp=this.value;tva()"></label></div>
+   ${ENT.tva_regime=='franchise'?'<div class="al info">Franchise en base de TVA : pas de déclaration CA3. Surveillez le dépassement des seuils.</div>':''}
+   <div class="scroll"><table><tr><th>Ligne CA3</th><th class="n">Montant</th></tr>${Object.entries(d.lignes).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}</table></div>
+   <div class="grid" style="margin-top:12px"><div class="kpi"><div class="l">À payer</div><div class="v">${fmt(d.a_payer)}</div></div><div class="kpi"><div class="l">Crédit de TVA</div><div class="v">${fmt(d.credit)}</div></div></div>
+   <p class="row"><button class="b" onclick="declare('tva','${window._tp}',${esc(JSON.stringify(JSON.stringify(d)))})">Préparer la télédéclaration</button><button class="g" onclick="settle('${s}','${e}')">Passer l'écriture de liquidation</button></p><div id="declOut"></div></div>`;
+}
+async function settle(s,e){await api('/api/tax/tva-settle',{start:s,end:e});toast('Liquidation de TVA comptabilisée')}
+
+// ---------- Impôts ----------
+const IRF=[['salaires','Salaires nets imposables (1AJ)'],['frais_reels','Frais réels (sinon 10 %)'],['pensions','Pensions / retraites (1AS)'],['micro_bnc','Recettes micro-BNC'],['micro_bic_service','CA micro-BIC services'],['micro_bic_vente','CA micro-BIC ventes'],['loyers_micro_foncier','Loyers bruts (micro-foncier)'],['dividendes','Dividendes'],['interets','Intérêts'],['pension_alimentaire','Pension alimentaire versée'],['per_versements','Versements PER'],['dons','Dons (66 %)'],['dons_aide','Dons aide aux personnes (75 %)'],['emploi_domicile','Emploi à domicile'],['garde_enfants','Garde enfants < 6 ans']];
+async function tax(){
+  const isP=ENT.kind=='particulier';let pre={donnees:{}};
+  if(isP)pre=await api('/api/tax/ir',{year:YEAR,from_ledger:true});
+  let isBlock='';
+  if(!isP){if(['SAS','SASU','SARL','EURL','SA'].includes(ENT.legal_form)){const r=await api(`/api/tax/is?year=${YEAR}`);
+    isBlock=`<div class="card"><h2>Impôt sur les sociétés ${YEAR} (estimation)</h2><div class="grid"><div class="kpi"><div class="l">Résultat fiscal estimé</div><div class="v">${fmt(r.base)}</div></div><div class="kpi"><div class="l">IS</div><div class="v">${fmt(r.is)}</div></div><div class="kpi"><div class="l">Acompte trimestriel</div><div class="v">${fmt(r.acomptes_trimestriels)}</div></div></div><p class="muted small">${esc(r.detail)} Réintégrations fiscales (amendes, quote-part non déductible…) à vérifier.</p></div>`}
+    else isBlock=`<div class="card"><h2>Micro-entreprise / EI : cotisations et revenu imposable</h2><div class="form"><label>Chiffre d'affaires annuel (€)<input id="mCa" type="number"></label><label>Activité<select id="mAct"><option value="bnc">Libérale (BNC)</option><option value="bic_service">Prestations BIC</option><option value="bic_vente">Ventes</option></select></label><label>Versement libératoire<select id="mVl"><option value="">Non</option><option value="1">Oui</option></select></label><button class="b" onclick="microCalc()">Calculer</button></div><div id="mOut"></div></div>`}
+  $('#view').innerHTML=`${isBlock}<div class="card"><h2>${isP?'Déclaration de revenus (2042) — pré-remplie par l\'IA':'Impôt sur le revenu du dirigeant (2042)'}</h2>
+   ${isP?`<p class="muted small">Montants déduits automatiquement de vos opérations ${YEAR} catégorisées. ${esc(pre.avertissement)}</p>`:''}
+   <div class="form"><label>Année des revenus<input id="tY" type="number" value="${YEAR}"></label><label>Situation<select id="tS"><option value="celibataire">Célibataire / divorcé·e / veuf·ve</option><option value="marie">Marié·e</option><option value="pacse">Pacsé·e</option></select></label><label>Enfants à charge<input id="tE" type="number" min="0" value="0"></label>
+   ${IRF.map(([k,l])=>`<label>${l}<input id="f_${k}" type="number" step="0.01" value="${pre.donnees[k]??''}"></label>`).join('')}</div>
+   <p><button class="b" onclick="irCalc()">Calculer mon impôt</button></p><div id="irOut"></div></div>`;
+}
+async function microCalc(){const r=await api('/api/tax/micro',{ca:+$('#mCa').value,activite:$('#mAct').value,vl:!!$('#mVl').value});$('#mOut').innerHTML=`<div class="grid" style="margin-top:12px">${[['Cotisations URSSAF',r.cotisations_urssaf],['Versement libératoire',r.versement_liberatoire],['Revenu imposable (après abattement)',r.revenu_imposable_micro],['Net avant IR',r.net_avant_ir]].map(([l,v])=>`<div class="kpi"><div class="l">${l}</div><div class="v">${fmt(v)}</div></div>`).join('')}</div><p class="muted small">${esc(r.note)}</p>`}
+async function irCalc(){
+  const p={situation:$('#tS').value,enfants:+$('#tE').value};IRF.forEach(([k])=>{const v=$('#f_'+k).value;if(v)p[k]=+v});
+  const {calcul:c}=await api('/api/tax/ir',{year:+$('#tY').value,profile:p});
+  $('#irOut').innerHTML=`<div class="grid" style="margin-top:12px">${[['Revenu net imposable',c.revenu_net_imposable],['Impôt brut',c.impot_brut],['Décote',c.decote],['Réductions',c.reductions],['Crédits d\'impôt',c.credits],['Prélèvements sociaux',c.prelevements_sociaux]].map(([l,v])=>`<div class="kpi"><div class="l">${l}</div><div class="v" style="font-size:18px">${fmt(v)}</div></div>`).join('')}</div>
+   <div class="card" style="margin-top:12px;background:var(--soft)"><div class="kpi"><div class="l">${c.total_a_payer<0?'Remboursement estimé':'Total à payer'}</div><div class="v">${fmt(Math.abs(c.total_a_payer))}</div></div><div class="small muted">${c.parts} part(s) · TMI ${c.tmi} · taux moyen ${c.taux_moyen}</div></div>
+   <h3>Cases à reporter sur impots.gouv.fr</h3><table><tr><th>Case</th><th class="n">Montant</th></tr>${Object.entries(c.cases_2042).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}</table>
+   ${c.notes.map(n=>`<div class="al info">${esc(n)}</div>`).join('')}<p class="muted small">Barème ${c.annee_revenus} paramétré dans <code>compta/tax.py</code> — numéros de cases indicatifs, à vérifier sur le formulaire officiel.</p>
+   <button class="b" onclick="declare('ir','${c.annee_revenus}',${esc(JSON.stringify(JSON.stringify({calcul:c,profil:p})))})">Préparer la déclaration</button><div id="declOut"></div>`;
+}
+async function declare(type,period,json){
+  const r=await api('/api/declarations',{type,period,data:JSON.parse(json),submit:true});
+  $('#declOut').innerHTML=`<div class="card" style="margin-top:12px"><h3>Déclaration n° ${r.id} — ${r.status=='deposee'?'déposée ✓':r.status=='prete'?'prête à déposer':'erreurs'}</h3>
+   ${r.erreurs.map(e=>`<div class="al critique">${esc(e)}</div>`).join('')}${r.depot?`<div class="al attention">${esc(r.depot)}</div>`:''}
+   <ol>${r.guide.map(g=>`<li>${esc(g)}</li>`).join('')}</ol><button class="g" onclick="api('/api/declarations/${r.id}/filed',{}).then(()=>toast('Marquée comme déposée'))">J'ai déposé cette déclaration</button></div>`;
+}
+
+// ---------- Assistant ----------
+async function assistant(){
+  window._chat=window._chat||[];
+  $('#view').innerHTML=`<div class="card"><h2>Assistant comptable & fiscal</h2><p class="muted small">L'assistant a accès aux chiffres de ce dossier pour l'exercice ${YEAR}.</p>
+   <div class="chat" id="chat">${window._chat.map(m=>`<div class="msg ${m.r}">${esc(m.t)}</div>`).join('')}</div>
+   <div class="row"><input id="q" style="flex:1;min-width:200px" placeholder="Ex : Combien de TVA dois-je payer ? Puis-je déduire mon ordinateur ?" onkeydown="if(event.key=='Enter')ask()"><button class="b" onclick="ask()">Envoyer</button></div>
+   <div class="row small" style="margin-top:8px">${['Quel est mon résultat ?','Combien de TVA dois-je ?','Comment réduire mon impôt légalement ?','Quelles dépenses sont anormales ?'].map(s=>`<button class="g" onclick="$('#q').value='${s.replace(/'/g,"\\'")}';ask()">${s}</button>`).join('')}</div></div>`;
+}
+async function ask(){const q=$('#q').value.trim();if(!q)return;window._chat.push({r:'u',t:q});assistant();
+  const r=await api('/api/assistant',{question:q,year:YEAR});window._chat.push({r:'a',t:r.answer});assistant();const c=$('#chat');c.scrollTop=c.scrollHeight}
+
+// ---------- Clôture & exports ----------
+async function close(){
+  const [assets,decls]=await Promise.all([api('/api/assets'),api('/api/declarations')]);const isE=ENT.kind=='entreprise';
+  $('#view').innerHTML=`${isE?`<div class="card"><h2>Immobilisations</h2><div class="form"><label>Bien<input id="aL"></label><label>Date d'acquisition<input type="date" id="aD"></label><label>Coût HT (€)<input type="number" id="aC"></label><label>Durée (ans)<input type="number" id="aY" value="3"></label><button class="b" onclick="addAsset()">Ajouter</button></div>
+   ${tbl(assets,[['Bien','label'],['Date','date'],['Coût','cost','n'],['Durée (ans)','years'],['Amorti','amortized','n']])}</div>
+   <div class="card"><h2>Clôture de l'exercice ${YEAR}</h2><p class="muted">Passe les dotations aux amortissements, calcule et comptabilise l'IS (sociétés), puis verrouille l'exercice (plus aucune écriture possible sur la période). ${ENT.closed_until?`<br>Clôturé jusqu'au : <strong>${ENT.closed_until}</strong>`:''}</p>
+   <button class="b" onclick="closeYear()">Clôturer ${YEAR}</button><pre id="cOut" class="small"></pre></div>`:''}
+  <div class="card"><h2>Exports</h2><p class="muted small">Le FEC (Fichier des Écritures Comptables) est exigé en cas de contrôle fiscal (art. L47 A du LPF).</p>
+   <div class="row"><a class="g" style="text-decoration:none;padding:7px 12px;border:1px solid var(--line);border-radius:8px" href="#" onclick="dlFec();return false">Télécharger le FEC ${YEAR}</a></div></div>
+  <div class="card"><h2>Historique des déclarations</h2>${tbl(decls,[['N°','id'],['Type','type'],['Période','period'],['Statut','status'],['Créée','created']])}</div>`;
+}
+async function addAsset(){await api('/api/assets',{label:$('#aL').value,date:$('#aD').value,cost:+$('#aC').value,years:+$('#aY').value});toast('Immobilisation enregistrée');close()}
+async function closeYear(){if(!confirm(`Clôturer définitivement ${YEAR} ?`))return;const r=await api('/api/closing',{year:YEAR});$('#cOut').textContent=JSON.stringify(r,null,2);ENTS=await api('/api/entities');ENT=ENTS.find(e=>e.id==ENT.id);toast('Exercice clôturé')}
+async function dlFec(){const t=await api(`/api/export/fec?year=${YEAR}`);const siren=(ENT.siret||'000000000').replace(/\s/g,'').slice(0,9);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/plain'}));a.download=`${siren}FEC${YEAR}1231.txt`;a.click()}
+init();
+</script>
+</body>
+</html>
