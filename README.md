@@ -18,6 +18,14 @@ export ANTHROPIC_API_KEY=sk-ant-...   # optionnel : COMPTA_MODEL=claude-opus-5-5
 python3 server.py
 ```
 
+Ou placez les variables dans un fichier `.env` **à la racine du projet** (à côté de `server.py`) :
+
+```
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Ce fichier est ignoré par Git. Une variable déjà définie dans l'environnement n'est jamais écrasée.
+
 Sans clé, un moteur de règles local prend le relais (aucune donnée ne quitte la machine).
 Derrière un proxy qui injecte lui-même l'en-tête `x-api-key` (secrets réseau d'un environnement cloud), lancez avec
 `COMPTA_AI_PROXY=1` : l'application active Claude sans jamais manipuler la clé.

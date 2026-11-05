@@ -4,11 +4,14 @@
     python3 server.py [--demo] [--port 8000]
 
 Variables : HOST (127.0.0.1), PORT, COMPTA_DB, ANTHROPIC_API_KEY, COMPTA_SECURE_COOKIE=1 derrière HTTPS.
+Elles peuvent aussi être placées dans un fichier `.env` à la racine du projet (ignoré par Git ; l'environnement réel prime).
 """
 import base64, json, os, re, sys, threading, datetime as dt
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from http.cookies import SimpleCookie
 from urllib.parse import urlparse, parse_qs
+from compta import envfile
+envfile.load()  # doit précéder les imports ci-dessous : compta.ai et compta.db lisent l'environnement à l'import
 from compta import (db, ledger, bank, ai, tax, business, filing, pcg, auth, documents, payroll, liasse, foncier,
                     edi, sales, expenses, exports, tiers, closing, analysis, vat, profile, tax_agent, obligations, agents)
 
@@ -831,6 +834,8 @@ def main():
     args = sys.argv[1:]
     port = int(args[args.index("--port") + 1]) if "--port" in args else int(os.environ.get("PORT", 8000))
     host = os.environ.get("HOST", "127.0.0.1")
+    if envfile.LOADED:  # noms seulement, jamais les valeurs
+        print("Variables lues depuis .env :", ", ".join(envfile.LOADED))
     CON = db.connect()
     if "--demo" in args and not CON.execute("SELECT COUNT(*) FROM entities").fetchone()[0]:
         import demo

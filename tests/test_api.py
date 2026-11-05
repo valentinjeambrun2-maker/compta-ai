@@ -1,6 +1,7 @@
 """Tests de bout en bout du serveur HTTP : authentification, rôles, exports."""
 import json, os, sys, tempfile, threading, unittest, urllib.request, urllib.error, base64
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+os.environ["COMPTA_NO_DOTENV"] = "1"  # un .env local ne doit pas réactiver l'IA pendant les tests
 os.environ.pop("ANTHROPIC_API_KEY", None)
 import server, demo
 from compta import db, auth
