@@ -24,6 +24,8 @@ def llm(system, user, max_tokens=2000):
     try:
         with urllib.request.urlopen(req, timeout=90) as r:
             data = json.load(r)
+        if data.get("stop_reason") == "max_tokens":  # sortie coupée : le JSON sera invalide
+            print("[IA] réponse tronquée (max_tokens atteint) — augmenter max_tokens")
         return "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
     except Exception as e:  # l'IA ne doit jamais bloquer la compta
         print("[IA] appel échoué :", e)
@@ -104,7 +106,8 @@ def categorize_batch(kind, rows, chart):
         sys = ("Tu es expert-comptable français. Pour chaque opération bancaire, choisis le compte le plus adapté du plan fourni "
                "et le taux de TVA récupérable (0, 5.5, 10 ou 20 ; 0 pour un particulier). Réponds UNIQUEMENT par un tableau JSON "
                '[{"i":index,"account":"code","tva_rate":n,"confidence":0-1,"reason":"courte justification"}].')
-        out = _json(llm(sys, f"Type de dossier : {kind}\nPlan comptable :\n{plan}\n\nOpérations (index|date|libellé|montant €) :\n{ops}"))
+        # 40 opérations × ~55 tokens de JSON dépassent 2000 : sortie tronquée => JSON invalide => repli silencieux.
+        out = _json(llm(sys, f"Type de dossier : {kind}\nPlan comptable :\n{plan}\n\nOpérations (index|date|libellé|montant €) :\n{ops}", 8000))
         for o in out or []:
             try:
                 i = chunk[int(o["i"])]
