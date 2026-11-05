@@ -4,6 +4,10 @@ import datetime as dt
 class LedgerError(ValueError):
     pass
 
+# Filtre SQL (alias `e` = entries) : la CA3 ignore l'écriture de liquidation de TVA, qui solde les comptes de TVA de la période.
+# Les autres écritures de source « tva » (bascule à l'encaissement, acompte) restent comptées.
+SANS_LIQUIDATION_TVA = "NOT (e.source = 'tva' AND e.label LIKE 'Liquidation TVA%')"
+
 def cents(x):
     """Euros (float/str) -> centimes (int), arrondi commercial."""
     if isinstance(x, int):

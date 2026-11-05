@@ -130,10 +130,17 @@ et indemnité forfaitaire pour frais de recouvrement de 40 € (art. L441-10 et 
 <script>window.print&&setTimeout(()=>0,0)</script></html>"""
 
 # ---------------- Immobilisations ----------------
-def add_asset(con, eid, label, date, cost_eur, years, pay_now=True):
+def add_asset(con, eid, label, date, cost_eur, years, pay_now=True, tva_rate=0):
+    """Acquisition d'immobilisation. cost_eur est le coût HT (base d'amortissement) ; la TVA déductible va au 44562.
+    Sans TVA pour une franchise en base ou un particulier."""
     cost = ledger.cents(cost_eur)
-    ledger.post_entry(con, eid, date, "AC", f"Acquisition immobilisation : {label}",
-                      [{"account": "2183", "debit": cost}, {"account": "512" if pay_now else "401", "credit": cost}], source="asset")
+    ent = ledger.entity(con, eid)
+    rate = float(tva_rate or 0) if ent["kind"] == "entreprise" and ent["tva_regime"] != "franchise" else 0.0
+    tva = round(cost * rate / 100)
+    lines = [{"account": "2183", "debit": cost}, {"account": "512" if pay_now else "401", "credit": cost + tva}]
+    if tva:
+        lines.insert(1, {"account": "44562", "debit": tva, "rate": rate, "base": cost})
+    ledger.post_entry(con, eid, date, "AC", f"Acquisition immobilisation : {label}", lines, source="asset")
     return con.execute("INSERT INTO assets(entity_id,label,date,cost,years) VALUES(?,?,?,?,?)", (eid, label, date, cost, int(years))).lastrowid
 
 def depreciate(con, eid, year):

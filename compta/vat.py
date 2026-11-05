@@ -53,13 +53,13 @@ def create_international_invoice(con, eid, kind, t, date, lines, number, due, ac
 def international_lines(con, eid, start, end):
     """Bases des opérations exonérées / autoliquidées pour la CA3."""
     def base(acc, sign=1):
-        r = con.execute("""SELECT COALESCE(SUM(l.credit-l.debit),0) FROM lines l JOIN entries e ON e.id=l.entry_id
-                           WHERE e.entity_id=? AND l.account=? AND e.date BETWEEN ? AND ?""", (eid, acc, start, end)).fetchone()[0]
+        r = con.execute(f"""SELECT COALESCE(SUM(l.credit-l.debit),0) FROM lines l JOIN entries e ON e.id=l.entry_id
+                           WHERE e.entity_id=? AND l.account=? AND e.date BETWEEN ? AND ? AND {ledger.SANS_LIQUIDATION_TVA}""", (eid, acc, start, end)).fetchone()[0]
         return sign * r
-    auto = con.execute("""SELECT COALESCE(SUM(l.base),0), COALESCE(SUM(l.credit),0) FROM lines l JOIN entries e ON e.id=l.entry_id
-                          WHERE e.entity_id=? AND l.account='4452' AND e.date BETWEEN ? AND ?""", (eid, start, end)).fetchone()
-    ded = con.execute("""SELECT COALESCE(SUM(l.debit-l.credit),0) FROM lines l JOIN entries e ON e.id=l.entry_id
-                         WHERE e.entity_id=? AND l.account='445662' AND e.date BETWEEN ? AND ?""", (eid, start, end)).fetchone()[0]
+    auto = con.execute(f"""SELECT COALESCE(SUM(l.base),0), COALESCE(SUM(l.credit),0) FROM lines l JOIN entries e ON e.id=l.entry_id
+                          WHERE e.entity_id=? AND l.account='4452' AND e.date BETWEEN ? AND ? AND {ledger.SANS_LIQUIDATION_TVA}""", (eid, start, end)).fetchone()
+    ded = con.execute(f"""SELECT COALESCE(SUM(l.debit-l.credit),0) FROM lines l JOIN entries e ON e.id=l.entry_id
+                         WHERE e.entity_id=? AND l.account='445662' AND e.date BETWEEN ? AND ? AND {ledger.SANS_LIQUIDATION_TVA}""", (eid, start, end)).fetchone()[0]
     return {"exportations": base("7072"), "livraisons_ue": base("7071"), "prestations_ue": base("7061"),
             "acquisitions_ue_base": auto[0], "tva_autoliquidee": auto[1], "tva_deductible_autoliquidee": ded}
 

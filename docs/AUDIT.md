@@ -27,8 +27,8 @@ Ce qu'un professionnel attend d'un logiciel de comptabilité et de déclarations
 | 7 | La DSN part **toujours en test** : le réglage `edi_test` est ignoré, donc aucune DSN de production. | Paie | `server.py:408`, `compta/payroll.py:154` | lu |
 | 8 | « Voir » une déclaration insère une ligne « prête » ; le statut relit la dernière ligne. Une obligation déposée redevient « prête », avec risque de double dépôt. | Déclarations | `compta/filing.py:46-50`, `compta/obligations.py:9-11` | lu |
 | 9 | Les accusés de télédéclaration ne mettent pas à jour la déclaration : elle reste « transmise ». | Déclarations | `compta/edi.py:117-119` | lu |
-| 10 | La liquidation de TVA datée du dernier jour de la période est relue dans la CA3, qui affiche alors 0 €. | TVA | `compta/tax.py:204-212`, `index.html:354` | lu |
-| 11 | La liquidation partielle ne solde pas 4452, 445662 ni 44562, pourtant comptés dans la CA3. | TVA | `compta/tax.py:246-249` | lu |
+| 10 | La liquidation de TVA datée du dernier jour de la période est relue dans la CA3, qui affiche alors 0 €. | TVA | `compta/tax.py:204-212`, `index.html:354` | **vérifié** (test qui échoue sur l'ancien code) · **corrigé** |
+| 11 | La liquidation partielle ne solde pas 4452, 445662 ni 44562, pourtant comptés dans la CA3. | TVA | `compta/tax.py:246-249` | **vérifié** · **corrigé** |
 | 12 | Le journal est limité à 500 écritures et la recherche à 300, sans avertissement. | Comptabilité | `compta/ledger.py:19,112` | lu |
 | 13 | **Déficit foncier faux** : les intérêts sont retranchés des loyers avant imputation. 8 320 € sont imputés sur le revenu global au lieu de 6 320 €, et les 2 000 € d'intérêts ne sont pas reportés. Le test fige l'erreur. | Mes impôts | `compta/foncier.py:29-30`, `tests/test_compta.py:130-134` | **vérifié** (calcul et test relus) |
 | 14 | Le dépôt ne contrôle que la présence des cases : une déclaration avec salaire estimé ou une annexe 3916 bloquante passe « prête ». Le connecteur partenaire n'appelle pas le contrôle. | Mes impôts | `compta/filing.py:33-41`, `compta/edi.py:82-83` | lu |
@@ -123,14 +123,22 @@ Ordre du menu : chaque outil a une fiche (fonctionne, défauts, écarts, amélio
    - *Acomptes* : le solde d'IS (2572) est net des acomptes versés au 444 pendant l'exercice.
    - *Contrôles* de la liasse : IS au 44551 à reclasser, IS comptabilisé différent du calcul, IS non encore comptabilisé.
    - Tests : `tests/test_impots_entreprise.py` (5). Suite complète : 64 tests verts.
-   - Non traité : liquidation de TVA (`tax.py:204-249`), SIRET normalisé à la saisie, acomptes d'IS comptabilisés par un bouton dédié.
+   - Non traité : SIRET normalisé à la saisie, bouton dédié aux acomptes d'IS.
+5. **TVA** :
+   - *CA3 stable après liquidation* : l'écriture de liquidation est ignorée par la CA3, qui affichait 0 € une fois la période liquidée. Seule la liquidation est exclue ; la bascule à l'encaissement et l'acompte restent comptés. Reproduit par un test qui échoue sur l'ancien code.
+   - *Liquidation complète* : elle solde 44571 et 4452 (collectée), 44566, 445662 et 44562 (déductible), vers 44551 ou 44567. Une seule fois par période : un second passage est refusé.
+   - *TVA sur immobilisations* : le formulaire demande un taux ; la TVA déductible va au 44562, le coût HT reste la base d'amortissement. Aucune TVA en franchise.
+   - *Lignes de taux* : le taux 2,1 % et une ligne « autres taux » s'affichent, le détail totalise la TVA brute.
+   - *Périodicité* : l'écran TVA propose mensuel ou trimestriel (période `AAAA-Tn`, comme les échéances).
+   - Tests : `tests/test_tva.py` (9). Suite complète : 73 tests verts. Vérifié dans le navigateur : CA3 trimestrielle inchangée après liquidation, second passage refusé, immobilisation de 1 000 € HT avec 200 € au 44562.
+   - Non traité : affectation des lignes du CERFA pour l'autoliquidation (à contrôler avec le formulaire officiel), contrôle de cohérence et brouillon idempotent (itération Déclarations), bouton d'acompte du régime simplifié, report du crédit de TVA antérieur.
 
 ## 5. Ordre proposé pour la suite
 
 Un outil par itération, un commit et un push par outil. L'ordre suit le risque pour le professionnel.
 
 1. **Comptabilité** : *fait* (voir §4, item 3). Restent `created_by` et les modèles d'écritures.
-2. **Impôts** : entreprise *fait* (voir §4, item 4). Reste côté particulier : foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant. Puis la liquidation de TVA.
+2. **Impôts** : entreprise *fait* (voir §4, item 4). Reste côté particulier : foncier corrigé et test mis à jour, dépôt verrouillé sur contrôle complet, justificatifs cumulés, source unique du calcul d'impôt utilisée par l'assistant. La TVA est faite (voir §4, item 5).
 3. **Déclarations** : upsert par type et période, bouton « déposée », propagation des accusés.
 4. **Paramètres** : SMTP sans identifiants en clair, garde du dernier propriétaire, droits sur les salaires et NIR, journal d'audit réel.
 5. **Paie** : DSN liée à `edi_test`, CSG, mutuelle, prorata.

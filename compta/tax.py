@@ -205,8 +205,8 @@ def ca3(con, eid, start, end):
     """Déclaration de TVA CA3 (régime réel normal) à partir des écritures."""
     def by_rate(acc, sign):
         out = {}
-        for r in con.execute("""SELECT l.rate, SUM(l.base) b, SUM(l.credit-l.debit) t FROM lines l JOIN entries e ON e.id=l.entry_id
-            WHERE e.entity_id=? AND l.account=? AND e.date BETWEEN ? AND ? GROUP BY l.rate""", (eid, acc, start, end)):
+        for r in con.execute(f"""SELECT l.rate, SUM(l.base) b, SUM(l.credit-l.debit) t FROM lines l JOIN entries e ON e.id=l.entry_id
+            WHERE e.entity_id=? AND l.account=? AND e.date BETWEEN ? AND ? AND {ledger.SANS_LIQUIDATION_TVA} GROUP BY l.rate""", (eid, acc, start, end)):
             out[r["rate"] or 0] = {"base": r["b"] or 0, "tva": sign * (r["t"] or 0)}
         return out
     col, ded = by_rate("44571", 1), by_rate("44566", -1)
@@ -222,11 +222,15 @@ def ca3(con, eid, start, end):
     net = brute - deductible
     e = ledger.euros
     ventes_ht = sum(v["base"] for v in col.values()) - intl["acquisitions_ue_base"]
+    t21 = col.get(2.1)   # taux particulier (presse, médicaments remboursables) : sans cette ligne, le détail ne totalise pas la TVA brute
+    autres = brute - sum(col.get(r, {}).get("tva", 0) for r in (20.0, 10.0, 5.5, 2.1))
     lignes = {
         "A01 Ventes, prestations de services (HT)": e(ventes_ht),
         "08 Taux normal 20 % — base HT": e(g(col, 20.0, "base")), "08 Taux normal 20 % — TVA": e(g(col, 20.0, "tva")),
         "9B Taux 10 % — base HT": e(g(col, 10.0, "base")), "9B Taux 10 % — TVA": e(g(col, 10.0, "tva")),
         "09 Taux 5,5 % — base HT": e(g(col, 5.5, "base")), "09 Taux 5,5 % — TVA": e(g(col, 5.5, "tva")),
+        **({"Taux 2,1 % — base HT": e(t21["base"]), "Taux 2,1 % — TVA": e(t21["tva"])} if t21 else {}),
+        **({"Autres taux — TVA": e(autres)} if autres else {}),
         "04 Exportations hors UE (base)": e(intl["exportations"]), "06 Livraisons intracommunautaires (base)": e(intl["livraisons_ue"]),
         "E3 Prestations de services intracommunautaires (base)": e(intl["prestations_ue"]),
         "B2 Acquisitions intracommunautaires / autoliquidation (base)": e(intl["acquisitions_ue_base"]),
@@ -239,12 +243,26 @@ def ca3(con, eid, start, end):
             "collectee": e(brute), "deductible": e(deductible), "net_cents": net}
 
 def post_tva_settlement(con, eid, start, end):
-    """Écriture de liquidation de TVA : solde 44571/44566 vers 44551 (ou 44567 si crédit)."""
-    d = ca3(con, eid, start, end)
-    col, ded = ledger.cents(d["collectee"]), ledger.cents(d["deductible"])
-    if not col and not ded:
+    """Écriture de liquidation de TVA : solde la TVA collectée (44571, 4452) et déductible (44566, 445662, 44562)
+    vers 44551 (TVA à décaisser) ou 44567 (crédit de TVA). La CA3 de la période ignore cette écriture. Une seule fois par période."""
+    label = f"Liquidation TVA {start} → {end}"
+    if con.execute("SELECT 1 FROM entries WHERE entity_id=? AND source='tva' AND label=?", (eid, label)).fetchone():
+        raise ledger.LedgerError("La liquidation de cette période est déjà comptabilisée")
+    def solde(acc):   # crédit - débit sur la période, hors liquidations
+        return con.execute(f"""SELECT COALESCE(SUM(l.credit - l.debit), 0) FROM lines l JOIN entries e ON e.id = l.entry_id
+            WHERE e.entity_id=? AND l.account=? AND e.date BETWEEN ? AND ? AND {ledger.SANS_LIQUIDATION_TVA}""", (eid, acc, start, end)).fetchone()[0]
+    lines, collectee, deductible = [], 0, 0
+    for acc in ("44571", "4452"):                 # comptes de TVA collectée : créditeurs, on les débite
+        b = solde(acc); collectee += b
+        if b:
+            lines.append({"account": acc, "debit": b} if b > 0 else {"account": acc, "credit": -b})
+    for acc in ("44566", "445662", "44562"):      # comptes de TVA déductible : débiteurs, on les crédite
+        d = -solde(acc); deductible += d
+        if d:
+            lines.append({"account": acc, "credit": d} if d > 0 else {"account": acc, "debit": -d})
+    if not lines:
         raise ledger.LedgerError("Aucune TVA sur la période")
-    net = col - ded
-    lines = [{"account": "44571", "debit": col}, {"account": "44566", "credit": ded}]
-    lines.append({"account": "44551", "credit": net} if net > 0 else {"account": "44567", "debit": -net})
-    return ledger.post_entry(con, eid, end, "OD", f"Liquidation TVA {start} → {end}", [l for l in lines if l.get("debit") or l.get("credit")], source="tva")
+    net = collectee - deductible
+    if net:
+        lines.append({"account": "44551", "credit": net} if net > 0 else {"account": "44567", "debit": -net})
+    return ledger.post_entry(con, eid, end, "OD", label, lines, source="tva")

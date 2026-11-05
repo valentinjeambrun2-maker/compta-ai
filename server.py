@@ -489,7 +489,7 @@ def assets(c, eid, q, b):
 
 @route("POST", "/api/assets", "ecriture")
 def add_asset(c, eid, q, b):
-    return {"id": business.add_asset(c, eid, b["label"], b["date"], b["cost"], b["years"])}
+    return {"id": business.add_asset(c, eid, b["label"], b["date"], b["cost"], b["years"], tva_rate=b.get("tva_rate", 0))}
 
 @route("POST", "/api/closing", "ecriture")
 def closing_route(c, eid, q, b):

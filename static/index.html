@@ -349,15 +349,19 @@ async function rep(){
 
 // ---------- TVA ----------
 async function tva(){
-  window._tp=window._tp||`${YEAR}-01`;const [y,m]=window._tp.split('-');const end=new Date(+y,+m,0).getDate();
-  const s=`${y}-${m}-01`,e=`${y}-${m}-${end}`;const d=await api(`/api/tax/ca3?start=${s}&end=${e}`);
-  $('#view').innerHTML=`<div class="card"><h2>Déclaration de TVA CA3</h2><div class="row"><label>Période<input type="month" value="${window._tp}" onchange="window._tp=this.value;tva()"></label></div>
+  window._tp=window._tp||`${YEAR}-01`;window._tm=window._tm||'m';const [y,m]=window._tp.split('-');
+  // Déclarant mensuel : le mois. Déclarant trimestriel : le trimestre du mois choisi (période `AAAA-Tn`, comme dans les échéances).
+  let s,e,per;
+  if(window._tm=='t'){const q=Math.ceil(+m/3),m3=q*3;s=`${y}-${String((q-1)*3+1).padStart(2,'0')}-01`;e=`${y}-${String(m3).padStart(2,'0')}-${new Date(+y,m3,0).getDate()}`;per=`${y}-T${q}`}
+  else{s=`${y}-${m}-01`;e=`${y}-${m}-${new Date(+y,+m,0).getDate()}`;per=window._tp}
+  const d=await api(`/api/tax/ca3?start=${s}&end=${e}`);
+  $('#view').innerHTML=`<div class="card"><h2>Déclaration de TVA CA3</h2><div class="row"><label>Périodicité<select onchange="window._tm=this.value;tva()"><option value="m" ${window._tm=='m'?'selected':''}>Mensuelle</option><option value="t" ${window._tm=='t'?'selected':''}>Trimestrielle</option></select></label><label>Mois<input type="month" value="${window._tp}" onchange="window._tp=this.value;tva()"></label><span class="muted small">Du ${s} au ${e}</span></div>
    ${ENT.tva_regime=='franchise'?'<div class="al info">Franchise en base de TVA : pas de déclaration CA3. Surveillez le dépassement des seuils.</div>':''}
    <div class="scroll"><table><tr><th>Ligne CA3</th><th class="n">Montant</th></tr>${Object.entries(d.lignes).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="n">${fmt(v)}</td></tr>`).join('')}</table></div>
    <div class="grid" style="margin-top:12px"><div class="kpi"><div class="l">À payer</div><div class="v">${fmt(d.a_payer)}</div></div><div class="kpi"><div class="l">Crédit de TVA</div><div class="v">${fmt(d.credit)}</div></div></div>
-   <p class="row"><button class="b" onclick="declare('tva','${window._tp}',${esc(JSON.stringify(JSON.stringify(d)))})">Préparer la télédéclaration</button><button class="g" onclick="settle('${s}','${e}')">Passer l'écriture de liquidation</button></p><div id="declOut"></div></div>`;
+   <p class="row"><button class="b" onclick="declare('tva','${per}',${esc(JSON.stringify(JSON.stringify(d)))})">Préparer la télédéclaration</button><button class="g" onclick="settle('${s}','${e}')">Passer l'écriture de liquidation</button></p><div id="declOut"></div></div>`;
 }
-async function settle(s,e){await api('/api/tax/tva-settle',{start:s,end:e});toast('Liquidation de TVA comptabilisée')}
+async function settle(s,e){await api('/api/tax/tva-settle',{start:s,end:e});toast('Liquidation de TVA comptabilisée : la CA3 de la période reste inchangée');tva()}
 
 // ---------- Impôts ----------
 const IRF=[['salaires','Salaires nets imposables (1AJ)'],['frais_reels','Frais réels (sinon 10 %)'],['pensions','Pensions / retraites (1AS)'],['micro_bnc','Recettes micro-BNC'],['micro_bic_service','CA micro-BIC services'],['micro_bic_vente','CA micro-BIC ventes'],['loyers_micro_foncier','Loyers bruts (micro-foncier)'],['dividendes','Dividendes'],['interets','Intérêts'],['pension_alimentaire','Pension alimentaire versée'],['per_versements','Versements PER'],['dons','Dons (66 %)'],['dons_aide','Dons aide aux personnes (75 %)'],['emploi_domicile','Emploi à domicile'],['garde_enfants','Garde enfants < 6 ans']];
@@ -415,7 +419,7 @@ async function ask(){const q=$('#q').value.trim();if(!q)return;window._chat.push
 // ---------- Clôture & exports ----------
 async function close(){
   const [assets,decls]=await Promise.all([api('/api/assets'),api('/api/declarations')]);const isE=ENT.kind=='entreprise';
-  $('#view').innerHTML=`${isE?`<div class="card"><h2>Immobilisations</h2><div class="form"><label>Bien<input id="aL"></label><label>Date d'acquisition<input type="date" id="aD"></label><label>Coût HT (€)<input type="number" id="aC"></label><label>Durée (ans)<input type="number" id="aY" value="3"></label><button class="b" onclick="addAsset()">Ajouter</button></div>
+  $('#view').innerHTML=`${isE?`<div class="card"><h2>Immobilisations</h2><div class="form"><label>Bien<input id="aL"></label><label>Date d'acquisition<input type="date" id="aD"></label><label>Coût HT (€)<input type="number" id="aC"></label><label>TVA déductible<select id="aT"><option value="20">20 %</option><option value="10">10 %</option><option value="5.5">5,5 %</option><option value="0" ${ENT.tva_regime=='franchise'?'selected':''}>Aucune</option></select></label><label>Durée (ans)<input type="number" id="aY" value="3"></label><button class="b" onclick="addAsset()">Ajouter</button></div>
    ${tbl(assets,[['Bien','label'],['Date','date'],['Coût','cost','n'],['Durée (ans)','years'],['Amorti','amortized','n']])}</div>
    <div class="card"><h2>Clôture de l'exercice ${YEAR}</h2><p class="muted">Passe les dotations aux amortissements, calcule et comptabilise l'IS (sociétés), puis verrouille l'exercice (plus aucune écriture possible sur la période). ${ENT.closed_until?`<br>Clôturé jusqu'au : <strong>${ENT.closed_until}</strong>`:''}</p>
    <button class="b" onclick="closeYear()">Clôturer ${YEAR}</button><pre id="cOut" class="small"></pre></div>`:''}
@@ -424,7 +428,7 @@ async function close(){
    <tr><td>FEC (format DGFiP)</td><td style="text-align:right"><button class="g small" onclick="download('/api/export/fec?year=${YEAR}')">Télécharger</button></td></tr></table></div>
   <div class="card"><h2>Historique des déclarations</h2>${tbl(decls,[['N°','id'],['Type','type'],['Période','period'],['Statut','status'],['Créée','created']])}</div>`;
 }
-async function addAsset(){await api('/api/assets',{label:$('#aL').value,date:$('#aD').value,cost:+$('#aC').value,years:+$('#aY').value});toast('Immobilisation enregistrée');close()}
+async function addAsset(){await api('/api/assets',{label:$('#aL').value,date:$('#aD').value,cost:+$('#aC').value,years:+$('#aY').value,tva_rate:+$('#aT').value});toast('Immobilisation enregistrée');close()}
 async function closeYear(){if(!confirm(`Clôturer définitivement ${YEAR} ?`))return;const r=await api('/api/closing',{year:YEAR});$('#cOut').textContent=JSON.stringify(r,null,2);ENTS=await api('/api/entities');ENT=ENTS.find(e=>e.id==ENT.id);toast('Exercice clôturé')}
 // ---------- Liasse fiscale ----------
 async function liasseCalc(){
